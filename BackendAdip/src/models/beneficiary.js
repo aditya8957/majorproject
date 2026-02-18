@@ -1,18 +1,21 @@
 const mongoose = require("mongoose");
 
 const beneficiarySchema = new mongoose.Schema({
- 
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'user',
+    required: true
+  },
   fullName: {
     type: String,
     required: true,
     trim: true
   },
   applicationId: {
-  type: String,
-  unique: true,
-  required: true
- },
-
+    type: String,
+    unique: true,
+    required: true
+  },
   age: {
     type: Number,
     required: true,
@@ -26,7 +29,6 @@ const beneficiarySchema = new mongoose.Schema({
   phone: {
     type: String,
     required: true,
-    unique: true,
     match: [/^[0-9]{10}$/, "Invalid phone number"]
   },
   email: {
@@ -38,8 +40,6 @@ const beneficiarySchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-
-  // Disability Details
   disabilityType: {
     type: String,
     enum: [
@@ -58,12 +58,10 @@ const beneficiarySchema = new mongoose.Schema({
     max: 100
   },
   disabilityCertificate: {
-    fileName: { type: String }, // stored filename
-    fileUrl: { type: String },  // path/URL where file is saved
+    fileName: { type: String },
+    fileUrl: { type: String },
     uploadedAt: { type: Date, default: Date.now }
   },
-
-  // Address Details
   address: {
     type: String,
     required: true
@@ -77,21 +75,20 @@ const beneficiarySchema = new mongoose.Schema({
     required: true,
     match: [/^[0-9]{6}$/, "Invalid PIN Code"]
   },
-
-  // Device Requirement
   requiredDevice: {
     type: String,
-    enum: ["wheelchair", "hearing", "crutches", "prosthetic", "braille"],
+    enum: ["wheelchair", "hearing aid", "crutches", "prosthetic", "braille"],
     required: true
   },
-
-  // Declaration
+  applicationStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'processing'],
+    default: 'pending'
+  },
   declarationAccepted: {
     type: Boolean,
     required: true
   },
-
-
   createdAt: {
     type: Date,
     default: Date.now
