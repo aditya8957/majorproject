@@ -20,7 +20,8 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import AuthPage from "./pages/AuthPage";
 import VoiceControl from "./components/voiceControl";
 import './index.css'; 
-import ErrorBoundary from './components/ErrorBoundary';  
+import ErrorBoundary from './components/ErrorBoundary'; 
+import ProfilePage from './components/ProfilePage'; 
 // import {  ApplicationHistory} from "./pages/History";
 
 // Providers component
@@ -65,6 +66,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
+             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/devices" element={<DeviceCatalog />} />
             <Route path="/help" element={<Help />} />
             <Route path="/contact" element={<Contact />} />

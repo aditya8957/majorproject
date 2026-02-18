@@ -1,4 +1,3 @@
-
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import axiosClient from './utils/axiosClient'
 
@@ -11,7 +10,6 @@ export const registerUser = createAsyncThunk(
       const response = await axiosClient.post('/user/register', userData);
       return response.data.user;
     } catch (error) {
-      // Clean error message
       return rejectWithValue(
         error.response?.data?.msg || 'User already exists'
       );
@@ -74,6 +72,22 @@ export const logoutUser = createAsyncThunk(
   }
 );
 
+// OPTIONAL: Add updateProfile thunk agar aapko profile update karna hai
+export const updateProfile = createAsyncThunk(
+  'auth/updateProfile',
+  async (profileData, { getState, rejectWithValue }) => {
+    try {
+      const { auth } = getState();
+      const response = await axiosClient.put('/user/profile', profileData);
+      return response.data.user;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.msg || 'Failed to update profile'
+      );
+    }
+  }
+);
+
 // --------------------- SLICE ---------------------
 
 const authSlice = createSlice({
@@ -82,9 +96,24 @@ const authSlice = createSlice({
     user: null,
     isAuthenticated: false,
     loading: false,
-    error: null
+    error: null,
+    // Optional: Add these if needed
+    profileUpdateLoading: false,
+    profileUpdateSuccess: false
   },
-  reducers: {},
+  reducers: {
+    // Optional: Clear error manually
+    clearError: (state) => {
+      state.error = null;
+    },
+    // Optional: Reset auth state
+    resetAuth: (state) => {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.loading = false;
+      state.error = null;
+    }
+  },
   extraReducers: (builder) => {
     builder
       // Register User
@@ -169,10 +198,37 @@ const authSlice = createSlice({
       .addCase(logoutUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || 'Something went wrong';
-        state.isAuthenticated = false;
+        // Even if logout fails, clear user data
         state.user = null;
+        state.isAuthenticated = false;
+      })
+
+      // Optional: Update Profile
+      .addCase(updateProfile.pending, (state) => {
+        state.profileUpdateLoading = true;
+        state.profileUpdateSuccess = false;
+        state.error = null;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.profileUpdateLoading = false;
+        state.profileUpdateSuccess = true;
+        state.user = action.payload; // Update user with new data
+      })
+      .addCase(updateProfile.rejected, (state, action) => {
+        state.profileUpdateLoading = false;
+        state.profileUpdateSuccess = false;
+        state.error = action.payload || 'Failed to update profile';
       });
   }
 });
+
+// Export actions
+export const { clearError, resetAuth } = authSlice.actions;
+
+// Selectors
+export const selectUser = (state) => state.auth.user;
+export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
+export const selectAuthLoading = (state) => state.auth.loading;
+export const selectAuthError = (state) => state.auth.error;
 
 export default authSlice.reducer;

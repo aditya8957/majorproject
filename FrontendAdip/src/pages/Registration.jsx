@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import api from "../utils/api";
 import { useAccessibility } from "../context/AccessibilityContext";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux"; 
 
 
 const indianStates = [
@@ -16,6 +18,7 @@ const indianStates = [
 export function Registration() {
   const { language } = useAccessibility();
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -34,10 +37,20 @@ export function Registration() {
   });
 
   const [file, setFile] = useState(null);
-  const [success, setSuccess] = useState(null); // holds success response (trackingId)
+  const [success, setSuccess] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/auth/login");
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const handleFileChange = (e) => {
@@ -61,43 +74,80 @@ export function Registration() {
       declarationAccepted: false,
     });
     setFile(null);
+    setError(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.declarationAccepted) {
+      alert(language === "en" ? "Please accept the declaration" : "कृपया घोषणा स्वीकार करें");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
 
     const data = new FormData();
+    
+    // Add userId from Redux store 
+    data.append("userId", user?._id);
+    
+    // Add all form fields
     for (let key in formData) {
       data.append(key, formData[key]);
     }
+    
+    // Add file if exists
     if (file) {
       data.append("disabilityCertificate", file);
     }
 
     try {
-      const res = await axios.post(
-        "http://localhost:4000/beneficiary/apply",
-        data,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-          withCredentials: true,
-        }
-      );
+      const res = await api.post("/beneficiary/apply", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
       setSuccess(res.data);
       resetForm();
     } catch (err) {
-      alert("Error: " + (err.response?.data || err.message));
+      console.error("Submission error:", err);
+      setError(err.response?.data?.message || err.message);
+      alert("Error: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Redirect after 10 seconds
+  // Redirect after 15 seconds
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => navigate("/"), 15000);
       return () => clearTimeout(timer);
     }
   }, [success, navigate]);
+
+  // Show login message if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] text-center">
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-6">
+          <p className="text-yellow-700">
+            {language === "en" 
+              ? "Please login to apply for benefits" 
+              : "लाभ के लिए आवेदन करने हेतु कृपया लॉगिन करें"}
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/auth/login")}
+          className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition duration-300"
+        >
+          {language === "en" ? "Go to Login" : "लॉगिन पर जाएँ"}
+        </button>
+      </div>
+    );
+  }
 
   if (success) {
     return (
