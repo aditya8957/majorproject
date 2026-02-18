@@ -1,0 +1,32 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+html.invert-colors {
+  filter: invert(1);
+  background-color: white;
+}
+
+
+html.invert-colors img.no-invert,
+html.invert-colors .no-invert,
+html.invert-colors [class*="no-invert"],
+html.invert-colors svg.no-invert {
+  filter: invert(1) !important;
+}
+
+html.invert-colors .bg-no-invert {
+  filter: invert(1) !important;
+}
+
+html.invert-colors button,
+html.invert-colors input,
+html.invert-colors select,
+html.invert-colors textarea {
+  filter: invert(1); 
+}
+
+
+.no-invert {
+  transition: filter 0.1s ease !important;
+}
