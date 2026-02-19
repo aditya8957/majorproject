@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { checkAuth } from "./authSlice";
 
 import { Navbar } from "./components/layout/Navbar";
-import { Footer } from "./components/layout/Footer";
+// import { Footer } from "./components/layout/Footer";
 import { Home } from "./pages/Home";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
 // import { AccessibilityControls } from "./components/ui/AccessibilityControls";
@@ -86,7 +86,7 @@ function App() {
             </Route>
           </Routes>
         </main>
-        <Footer />
+        {/* <Footer /> */}
       </div>
     </Providers>
   );
