@@ -55,10 +55,8 @@ export function Navbar() {
     { path: "/devices", label: language === "en" ? "Devices" : "उपकरण" },
     { path: "/application/status", label: language === "en" ? "Track Application" : "आवेदन ट्रैक करें" },
     { path: "/eligibility-checker", label: language === "en" ? "Check Eligibility" : "पात्रता जांचें" },
-    { path: "/history", label: language === "en" ? "History" : "इतिहास" },
-    { path: "/dashboard", label: language === "en" ? "Dashboard" : "डैशबोर्ड" },
     { path: "/help", label: language === "en" ? "Help/FAQs" : "सहायता/प्रश्न" },
-    { path: "/contact", label: language === "en" ? "Contact" : "संपर्क" },
+    { path: "/contact", label: language === "en" ? "Contact Us" : "संपर्क" },
   ];
 
   const mainNavItems = navItems.slice(0, 5);

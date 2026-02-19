@@ -363,14 +363,14 @@ export function Registration() {
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700">
                   {language === "en"
-                    ? "Disability Certificate (PDF/JPG)"
-                    : "विकलांगता प्रमाण पत्र (PDF/JPG)"} *
+                    ? "Disability Certificate (PDF)"
+                    : "विकलांगता प्रमाण पत्र (PDF)"} *
                 </label>
                 <input
                   type="file"
                   name="disabilityCertificate"
                   onChange={handleFileChange}
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept=".pdf"
                   className="w-full p-2 border rounded-md"
                   required
                 />

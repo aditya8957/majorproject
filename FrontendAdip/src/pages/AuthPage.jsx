@@ -103,9 +103,7 @@ export default function AuthPage() {
         <div className="w-full max-w-md bg-white shadow-2xl rounded-2xl p-8">
           <LoadingBar color="#2563eb" ref={loadingRef} height={3} />
           <h2 className="text-3xl font-extrabold text-center text-blue-600 mb-6">
-            {isLogin
-              ? 
-                 <h1 className="text-3xl font-semibold bg-gradient-to-r from-blue-700 via-indigo-500 to-purple-600 bg-clip-text text-transparent drop-shadow-md inline-flex items-center gap-0.2">
+                <h1 className="text-3xl font-semibold bg-gradient-to-r from-blue-700 via-indigo-500 to-purple-600 bg-clip-text text-transparent drop-shadow-md inline-flex items-center gap-0.2">
                   Divyang
                   <img
                     src="https://www.svgrepo.com/show/287846/wheelchair.svg"
@@ -114,10 +112,6 @@ export default function AuthPage() {
                   />
                   Sahayak
                 </h1>
-                : 
-               language === "en"
-                ? "Create an Account"
-                : "खाता बनाएँ"}
           </h2>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
