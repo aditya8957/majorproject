@@ -1,23 +1,7 @@
 const Beneficiary = require("../models/beneficiary");
 const validateBeneficiary = require("../utils/beneficiaryValidator");
 const TrackStatus = require("../models/trackStatus");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const path = require("path");
-
-
-
-
-// const generateApplicationId = async () => {
-//   const last = await Beneficiary.findOne().sort({ createdAt: -1 });
-//   let nextNumber = 1;
-//   if (last && last.applicationId) {
-//     const match = last.applicationId.match(/ADIP(\d{7})/);
-//     if (match) nextNumber = parseInt(match[1]) + 1;
-//   }
-//   const year = new Date().getFullYear();
-//   return `ADIP${year}${String(nextNumber).padStart(3, "0")}`;
-// };
+const cloudinary = require("../config/cloudinary");
 
 const generateApplicationId = async () => {
   const year = new Date().getFullYear();
@@ -33,42 +17,43 @@ const generateApplicationId = async () => {
   return id;
 };
 
-
-
-
-
 const registerBeneficiary = async (req, res) => {
   try {
-
     validateBeneficiary(req.body);
 
     const { fullName, email, phone } = req.body;
 
-    
-
     req.body.role = "user";
 
-   
     if (req.file) {
- 
-      const normalizedPath = req.file.path.replace(/\\/g, "/");
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "disability_certificates",
+            resource_type: "raw"  
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+
+      const viewUrl = `https://res.cloudinary.com/${cloudinary.config().cloud_name}/raw/upload/fl_attachment:false/${result.public_id}.pdf`;
 
       req.body.disabilityCertificate = {
-        fileName: req.file.filename,
-        
-        filePath: normalizedPath,
-       
-        fileUrl: `/uploads/${req.file.filename}`
+        fileName: req.file.originalname,
+        fileUrl: viewUrl,     
+        publicId: result.public_id
       };
     }
-
 
     req.body.applicationId = await generateApplicationId();
 
     const beneficiary = await Beneficiary.create(req.body);
 
-
-     await TrackStatus.create({
+    await TrackStatus.create({
       applicationId: beneficiary.applicationId,
       name: beneficiary.fullName,
       phoneNumber: beneficiary.phone,
@@ -76,12 +61,8 @@ const registerBeneficiary = async (req, res) => {
       device: beneficiary.requiredDevice
     });
 
-    const token = jwt.sign(
-      { _id: beneficiary._id, email: beneficiary.email, role: "user" },
-      process.env.JWT_KEY,
-      { expiresIn: 60 * 60 } // 1 hour
-    );
-
+    // 🚨 IMPORTANT: DO NOT generate new token here
+    // User should keep their original login token
 
     const reply = {
       _id: beneficiary._id,
@@ -97,15 +78,15 @@ const registerBeneficiary = async (req, res) => {
       disabilityCertificate: beneficiary.disabilityCertificate
     };
 
-
-    res.cookie("token", token, { maxAge: 60 * 60 * 1000, httpOnly: true });
-
     res.status(201).json({
       user: reply,
       message: "Beneficiary Registered Successfully"
     });
   } catch (err) {
-    res.status(400).send("Error: " + err.message);
+    res.status(400).json({ 
+      success: false,
+      message: err.message 
+    });
   }
 };
 

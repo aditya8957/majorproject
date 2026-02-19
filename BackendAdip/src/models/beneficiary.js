@@ -59,7 +59,8 @@ const beneficiarySchema = new mongoose.Schema({
   },
   disabilityCertificate: {
     fileName: { type: String },
-    fileUrl: { type: String },
+    fileUrl: { type: String, required: true },
+    publicId: { type: String, required: true },  
     uploadedAt: { type: Date, default: Date.now }
   },
   address: {

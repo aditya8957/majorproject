@@ -1,6 +1,7 @@
 const express = require('express')
 const app = express();
 require('dotenv').config();
+require("./config/cloudinary");
 const main = require('./config/db')
 const cookieParser = require('cookie-parser');
 const redisClient = require('./config/redis');
@@ -11,7 +12,6 @@ const contactRouter = require("./routes/contactRouter");
 
 
 const cors = require("cors");
-const path = require("path");
 
 app.use(cors({ 
     origin: "http://localhost:5173",
@@ -21,7 +21,6 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser()); 
 
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use('/user', authRouter);
 app.use('/beneficiary', beneficiaryRouter);

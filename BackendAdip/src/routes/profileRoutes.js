@@ -15,8 +15,8 @@ const {
 profileRouter.use(userMiddleware);
 
 // Profile routes
-profileRouter.get('/profile', getUserProfile);
-profileRouter.put('/profile', updateProfile);
+profileRouter.get('/', getUserProfile);
+profileRouter.put('/', updateProfile);
 
 // Applications routes
 profileRouter.get('/applications', getAllApplications);

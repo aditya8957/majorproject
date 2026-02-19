@@ -1,8 +1,8 @@
-// controllers/profileController.js
+
 const Beneficiary = require('../models/beneficiary');
 const User = require('../models/user');
 
-// Get user profile with all their applications
+
 const getUserProfile = async (req, res) => {
     try {
         // User data is already attached by middleware (req.result)
