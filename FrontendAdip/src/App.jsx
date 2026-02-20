@@ -22,6 +22,7 @@ import VoiceControl from "./components/voiceControl";
 import './index.css'; 
 import ErrorBoundary from './components/ErrorBoundary'; 
 import ProfilePage from './components/ProfilePage'; 
+import AdminDashboard from './pages/AdminDashboard';
 // import {  ApplicationHistory} from "./pages/History";
 
 // Providers component
@@ -82,7 +83,8 @@ function App() {
             <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
               <Route path="/beneficiary/apply" element={<Registration />} />
               <Route path="/application/status" element={<ApplicationStatus />} />
-              {/* <Route path="/history" element={< ApplicationHistory />} /> */}
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          
             </Route>
           </Routes>
         </main>

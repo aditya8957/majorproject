@@ -771,11 +771,11 @@ export function Home() {
 
           {/* Bottom Bar */}
           <div className="flex flex-col md:flex-row justify-between items-center text-gray-400 text-sm">
-            <p>© 2024 ADIP Scheme. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} Divyang Sahayak. All rights reserved.</p>
             <div className="flex gap-6 mt-4 md:mt-0">
-              <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
-              <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
-              <Link to="/sitemap" className="hover:text-white transition-colors">Sitemap</Link>
+              <Link to="/#" className="hover:text-white transition-colors">Privacy</Link>
+              <Link to="/#" className="hover:text-white transition-colors">Terms</Link>
+              <Link to="/#" className="hover:text-white transition-colors">Sitemap</Link>
               <Link to="/accessibility" className="hover:text-white transition-colors">Accessibility</Link>
             </div>
           </div>
