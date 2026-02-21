@@ -792,7 +792,7 @@ export function Home() {
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 2, type: "spring" }}
-        className="fixed bottom-8 right-8 z-50"
+        className="fixed bottom-5 left-4 z-50"
       >
         <Link
           to="/help"

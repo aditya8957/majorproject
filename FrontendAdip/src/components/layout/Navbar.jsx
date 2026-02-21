@@ -258,7 +258,7 @@ export function Navbar() {
               {/* Action Buttons */}
               <div className="flex items-center gap-2 ml-2">
                 {/* Notifications (for authenticated users) */}
-                {isAuthenticated && (
+                {/* {isAuthenticated && (
                   <div className="relative" ref={notificationsRef}>
                     <motion.button
                       whileHover={{ scale: 1.1 }}
@@ -314,7 +314,7 @@ export function Navbar() {
                       )}
                     </AnimatePresence>
                   </div>
-                )}
+                )} */}
 
                 {/* Accessibility Button */}
                 <motion.button
@@ -412,7 +412,7 @@ export function Navbar() {
 
                             {user?.role === "admin" && (
                             <Link
-                              to="/admin/dashboard"
+                              to="/admin"
                               className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-purple-50 transition-all duration-300 group"
                               onClick={() => setShowUserMenu(false)}
                             >
@@ -424,7 +424,7 @@ export function Navbar() {
                           )}
 
                             <Link
-                              to="/applications"
+                              to="/profile/applications"
                               className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 transition-all duration-300 group"
                               onClick={() => setShowUserMenu(false)}
                             >

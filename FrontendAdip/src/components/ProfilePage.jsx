@@ -23,6 +23,12 @@ const ProfilePage = () => {
     }
   }, [isAuthenticated, location.key]);
 
+  useEffect(() => {
+  if (location.pathname === "/profile/applications") {
+    setActiveTab("applications");
+  }
+}, [location]);
+
   const fetchAllData = async () => {
     setLoading(true);
     setError(null);
