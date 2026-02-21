@@ -38,7 +38,6 @@ export function Home() {
   const y2 = useTransform(scrollY, [0, 500], [0, -50]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0.8]);
 
-  // Background images with better quality
   const images = [
     "https://images.unsplash.com/photo-1508847154043-be5407fcaa5a?q=80&w=1470&auto=format&fit=crop",
     "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=1470&auto=format&fit=crop",
