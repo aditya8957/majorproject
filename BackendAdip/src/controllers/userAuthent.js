@@ -3,45 +3,12 @@ const User =  require("../models/user")
 const validate = require('../utils/validator');
 const bcrypt = require("bcrypt");
 const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require("google-auth-library");   
+const { OAuth2Client } = require('google-auth-library');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const register = async (req,res)=>{
-    
-    try{
-        // validate the data;
-
-      validate(req.body); 
-      const {firstName, emailId, password}  = req.body;
-
-      req.body.password = await bcrypt.hash(password, 10);
-      req.body.role = 'user'
-    //
-    
-     const user =  await User.create(req.body);
-     const token =  jwt.sign({_id:user._id , emailId:emailId, role:'user'},process.env.JWT_KEY,{expiresIn: 60*60});
-     const reply = {
-        firstName: user.firstName,
-        emailId: user.emailId,
-        _id: user._id,
-        role:user.role,
-    }
-    
-     res.cookie('token',token,{maxAge: 60*60*1000});
-     res.status(201).json({
-        user:reply,
-        message:"Register Successfully"
-    })
-    }
-    catch(err){
-        res.status(400).send("Error: "+err);
-    }
-}
-
 
 const login = async (req,res)=>{
-
     try{
         const {emailId, password} = req.body;
 
@@ -65,14 +32,64 @@ const login = async (req,res)=>{
         }
 
         const token =  jwt.sign({_id:user._id , emailId:emailId, role:user.role},process.env.JWT_KEY,{expiresIn: 60*60});
-        res.cookie('token',token,{maxAge: 60*60*1000});
+
+        const isProduction = process.env.NODE_ENV === "production";
+
+        res.cookie("token", token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? "None" : "Lax", 
+        maxAge: 60 * 60 * 1000
+        });
+
+       
         res.status(201).json({
-            user:reply,
-            message:"Loggin Successfully"
+            user: reply,
+            token: token,  
+            message:"Login Successfully"
         })
     }
     catch(err){
         res.status(401).send("Error: "+err);
+    }
+}
+
+// Register mein bhi token bhejo
+const register = async (req,res)=>{
+    try{
+        validate(req.body); 
+        const {firstName, emailId, password}  = req.body;
+
+        req.body.password = await bcrypt.hash(password, 10);
+        req.body.role = 'user'
+    
+        const user =  await User.create(req.body);
+        const token =  jwt.sign({_id:user._id , emailId:emailId, role:'user'},process.env.JWT_KEY,{expiresIn: 60*60});
+        const reply = {
+            firstName: user.firstName,
+            emailId: user.emailId,
+            _id: user._id,
+            role:user.role,
+        }
+
+        const isProduction = process.env.NODE_ENV === "production";
+
+        res.cookie("token", token, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "None" : "Lax", 
+            maxAge: 60 * 60 * 1000
+        });
+
+       
+        res.status(201).json({
+            user:reply,
+            token: token,  
+            message:"Registered Successfully"
+        })
+    }
+    catch(err){
+        res.status(400).send("Error: "+err);
     }
 }
 
@@ -88,7 +105,9 @@ const logout = async(req,res)=>{
 
         await redisClient.set(`token:${token}`,'Blocked');
         await redisClient.expireAt(`token:${token}`,payload.exp);
- 
+    //    Token add kar dung Redis ke blockList
+    //    Cookies ko clear kar dena.....
+
     res.cookie("token",null,{expires: new Date(Date.now())});
     res.send("Logged Out Succesfully");
 
@@ -101,7 +120,9 @@ const logout = async(req,res)=>{
 
 const adminRegister = async(req,res)=>{
     try{
-       
+        // validate the data;
+    //   if(req.result.role!='admin')
+    //     throw new Error("Invalid Credentials");  
       validate(req.body); 
       const {firstName, emailId, password}  = req.body;
 
@@ -122,9 +143,11 @@ const deleteProfile = async(req,res)=>{
   
     try{
        const userId = req.result._id;
-
+      
+    // userSchema delete
     await User.findByIdAndDelete(userId);
 
+    
     res.status(200).send("Deleted Successfully");
 
     }
@@ -133,6 +156,7 @@ const deleteProfile = async(req,res)=>{
         res.status(500).send("Internal Server Error");
     }
 }
+
 
 
 // Google Login

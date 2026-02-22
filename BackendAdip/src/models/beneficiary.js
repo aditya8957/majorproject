@@ -57,11 +57,19 @@ const beneficiarySchema = new mongoose.Schema({
     min: 0,
     max: 100
   },
-  disabilityCertificate: {
+   disabilityCertificate: {
     fileName: { type: String },
     fileUrl: { type: String, required: true },
-    publicId: { type: String, required: true },  
-    uploadedAt: { type: Date, default: Date.now }
+    publicId: { type: String, required: true },
+    uploadedAt: { type: Date, default: Date.now },
+    verificationStatus: {  // ✅ Add this
+      type: String,
+      enum: ['pending', 'verified', 'rejected'],
+      default: 'pending'
+    },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedAt: { type: Date }, 
+    rejectionReason: { type: String } 
   },
   address: {
     type: String,
@@ -78,7 +86,7 @@ const beneficiarySchema = new mongoose.Schema({
   },
   requiredDevice: {
     type: String,
-    enum: ["wheelchair", "hearing aid", "crutches", "prosthetic", "braille"],
+    enum: ["wheelchair", "hearing", "crutches", "prosthetic", "braille"],
     required: true
   },
   applicationStatus: {

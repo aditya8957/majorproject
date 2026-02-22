@@ -1,6 +1,6 @@
 const Beneficiary = require("../models/beneficiary");
-const validateBeneficiary = require("../utils/beneficiaryValidator");
 const TrackStatus = require("../models/trackStatus");
+const validateBeneficiary = require("../utils/beneficiaryValidator");
 const cloudinary = require("../config/cloudinary");
 
 const generateApplicationId = async () => {
@@ -30,7 +30,8 @@ const registerBeneficiary = async (req, res) => {
         const stream = cloudinary.uploader.upload_stream(
           {
             folder: "disability_certificates",
-            resource_type: "raw"  
+            resource_type: "raw",
+            format: "pdf"
           },
           (error, result) => {
             if (error) reject(error);
@@ -40,12 +41,12 @@ const registerBeneficiary = async (req, res) => {
         stream.end(req.file.buffer);
       });
 
-      const viewUrl = `https://res.cloudinary.com/${cloudinary.config().cloud_name}/raw/upload/fl_attachment:false/${result.public_id}.pdf`;
-
       req.body.disabilityCertificate = {
         fileName: req.file.originalname,
-        fileUrl: viewUrl,     
-        publicId: result.public_id
+        fileUrl: result.secure_url,
+        publicId: result.public_id,
+        version: result.version,
+        uploadedAt: new Date()
       };
     }
 
@@ -53,16 +54,16 @@ const registerBeneficiary = async (req, res) => {
 
     const beneficiary = await Beneficiary.create(req.body);
 
+    // ✅ Create track status record for public tracking
     await TrackStatus.create({
       applicationId: beneficiary.applicationId,
       name: beneficiary.fullName,
       phoneNumber: beneficiary.phone,
-      status: "pending",
-      device: beneficiary.requiredDevice
+      status: beneficiary.applicationStatus || "pending",
+      device: beneficiary.requiredDevice,
+      appliedDate: beneficiary.createdAt,
+      updatedDate: beneficiary.createdAt
     });
-
-    // 🚨 IMPORTANT: DO NOT generate new token here
-    // User should keep their original login token
 
     const reply = {
       _id: beneficiary._id,
@@ -82,10 +83,12 @@ const registerBeneficiary = async (req, res) => {
       user: reply,
       message: "Beneficiary Registered Successfully"
     });
+
   } catch (err) {
-    res.status(400).json({ 
+    console.error('Registration error:', err);
+    res.status(400).json({
       success: false,
-      message: err.message 
+      message: err.message
     });
   }
 };
