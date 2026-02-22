@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
-import { verifyDocument, updateApplicationStatus } from '../../store';
+import { verifyDocumentStatus , updateApplicationStatus, fetchDocument } from '../../store';
 import {
   ArrowLeft,
   Printer,
@@ -14,17 +14,23 @@ import {
   Check,
   XCircle,
   AlertCircle,
-  ChevronRight
+  ChevronRight,
+  Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { StatusBadge } from '../../component/StatusBadge';
 import { motion, AnimatePresence } from "framer-motion";
 
 export const ApplicationDetailsPage = () => {
-
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  // ✅ Redux state
+  const { loading } = useSelector((state) => state.app);
+  
+  // ✅ Force update ke liye local state
+  const [updateTrigger, setUpdateTrigger] = useState(0);
 
   const app = useSelector((state) =>
     state.app.applications.find((a) => a.id === id)
@@ -36,21 +42,83 @@ export const ApplicationDetailsPage = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [selectedNGOId, setSelectedNGOId] = useState('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [showDocVerifyModal, setShowDocVerifyModal] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [docRejectionReason, setDocRejectionReason] = useState('');
+
+  useEffect(() => {
+    if (app) {
+      console.log('🔄 App updated:', {
+        id: app.id,
+        documents: app.documents.map(d => ({ id: d.id, status: d.status }))
+      });
+    }
+  }, [app, updateTrigger]); 
 
   if (!app) return <div>Application not found</div>;
 
   const isEligible =
-    app.disabilityPercentage >= 40 &&
+    app.disabilityPercentage >= 30 &&
     app.monthlyIncome < 20000;
 
-  const handleVerifyDoc = (docId, status) => {
-    dispatch(
-      verifyDocument({
+  const handleViewDocument = async (doc) => {
+    try {
+      if (doc.url) {
+        window.open(doc.url, '_blank', 'noopener,noreferrer');
+      } else {
+        const docData = await dispatch(fetchDocument(app.id));
+        if (docData?.fileUrl) {
+          window.open(docData.fileUrl, '_blank');
+        } else {
+          alert('PDF URL not available');
+        }
+      }
+    } catch (error) {
+      console.error('Error viewing document:', error);
+      alert('Failed to open PDF');
+    }
+  };
+
+ 
+  const handleVerifyDoc = (doc, status) => {
+    setSelectedDoc(doc);
+    
+    if (status === 'rejected') {
+      setShowDocVerifyModal(true);
+    } else {
+      // Document verify karo
+      dispatch(verifyDocumentStatus({
         appId: app.id,
-        docId,
-        status
-      })
-    );
+        docId: doc.id,
+        status: 'verified'
+      })).then((result) => {
+        if (result.success) {
+          console.log('✅ Document verified successfully');
+        
+          setUpdateTrigger(prev => prev + 1);
+        }
+      });
+    }
+  };
+
+
+  const handleDocVerification = () => {
+    if (selectedDoc) {
+      dispatch(verifyDocumentStatus({
+        appId: app.id,
+        docId: selectedDoc.id,
+        status: 'rejected',
+        rejectionReason: docRejectionReason
+      })).then((result) => {
+        if (result.success) {
+          setShowDocVerifyModal(false);
+          setSelectedDoc(null);
+          setDocRejectionReason('');
+          // FORCE UI UPDATE
+          setUpdateTrigger(prev => prev + 1);
+        }
+      });
+    }
   };
 
   const handleApprove = () => {
@@ -72,7 +140,7 @@ export const ApplicationDetailsPage = () => {
       })
     );
     setShowRejectionModal(false);
-    navigate('/applications');
+    navigate('/admin/applications');
   };
 
   const handleAssignNGO = () => {
@@ -93,15 +161,19 @@ export const ApplicationDetailsPage = () => {
         status: 'PROCESSING_AT_NGO'
       })
     );
-    navigate('/applications');
+    navigate('/admin/applications');
   };
 
-   return (
+ 
+  const allDocumentsVerified = app?.documents?.every(doc => doc.status === 'verified') || false;
+
+  return (
     <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => navigate('/applications')}
+            onClick={() => navigate('/admin/applications')}
             className="p-2 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-200"
           >
             <ArrowLeft size={20} />
@@ -191,7 +263,10 @@ export const ApplicationDetailsPage = () => {
             </h3>
             <div className="space-y-3">
               {app.documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all">
+                <div 
+                  key={`${doc.id}-${doc.status}-${updateTrigger}`} // ✅ Unique key for re-render
+                  className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all"
+                >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500">
                       <FileText size={20} />
@@ -199,36 +274,62 @@ export const ApplicationDetailsPage = () => {
                     <div>
                       <p className="text-sm font-bold text-slate-900">{doc.name}</p>
                       <p className="text-xs text-slate-400 capitalize">{doc.type.replace(/_/g, ' ')}</p>
+                      {/* Document status badge */}
+                      {doc.status === 'verified' && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          <Check size={12} /> Verified
+                        </span>
+                      )}
+                      {doc.status === 'rejected' && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                          <XCircle size={12} /> Rejected
+                        </span>
+                      )}
+                      {doc.status === 'pending' && (
+                        <span className="inline-flex items-center gap-1 mt-1 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                          <AlertCircle size={12} /> Pending
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {doc.status === 'verified' ? (
-                      <span className="text-emerald-500 flex items-center gap-1 text-xs font-bold px-3 py-1 bg-emerald-50 rounded-full">
-                        <Check size={14} /> Verified
-                      </span>
-                    ) : doc.status === 'rejected' ? (
-                      <span className="text-red-500 flex items-center gap-1 text-xs font-bold px-3 py-1 bg-red-50 rounded-full">
-                        <XCircle size={14} /> Rejected
-                      </span>
-                    ) : (
+                    {/* View Document Button */}
+                    <button 
+                      onClick={() => handleViewDocument(doc)}
+                      className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                      title="View Document"
+                    >
+                      <Eye size={20} />
+                    </button>
+                    
+                    {/* Download Button */}
+                    <button 
+                      onClick={() => window.open(doc.url, '_blank')}
+                      className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all"
+                      title="Download"
+                    >
+                      <Download size={20} />
+                    </button>
+
+                    {/* Verification Buttons - Only show if pending */}
+                    {doc.status === 'pending' && (
                       <>
                         <button 
-                          onClick={() => handleVerifyDoc(doc.id, 'verified')}
+                          onClick={() => handleVerifyDoc(doc, 'verified')}
                           className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
+                          title="Verify Document"
                         >
                           <Check size={20} />
                         </button>
                         <button 
-                          onClick={() => handleVerifyDoc(doc.id, 'rejected')}
+                          onClick={() => handleVerifyDoc(doc, 'rejected')}
                           className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Reject Document"
                         >
                           <XCircle size={20} />
                         </button>
                       </>
                     )}
-                    <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-all">
-                      <Download size={20} />
-                    </button>
                   </div>
                 </div>
               ))}
@@ -252,29 +353,77 @@ export const ApplicationDetailsPage = () => {
             </div>
 
             <div className="p-8 space-y-8">
-              {/* Step 1: Document Checklist */}
+              {/* Step 1: Document Verification */}
               {verificationStep === 1 && (
                 <div className="space-y-6">
                   <h4 className="font-bold text-slate-900">1. Document Verification</h4>
+                  
+                  {/* Document Checklist */}
                   <div className="space-y-4">
-                    {app.documents.map(doc => (
-                      <label key={doc.id} className="flex items-center gap-3 cursor-pointer group">
-                        <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${doc.status === 'verified' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 group-hover:border-emerald-500'}`}>
-                          {doc.status === 'verified' && <Check size={14} />}
+                    {app.documents.map(doc => {
+                      const isVerified = doc.status === 'verified';
+                      const isRejected = doc.status === 'rejected';
+                      
+                      return (
+                        <div 
+                          key={`${doc.id}-${doc.status}-${updateTrigger}`} // ✅ Unique key for re-render
+                          className="flex items-center gap-3"
+                        >
+                          {/* Tick Circle - YAHI TICK HOGA */}
+                          <div className={`
+                            w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all
+                            ${isVerified 
+                              ? 'bg-emerald-500 border-emerald-500 text-white' 
+                              : isRejected
+                                ? 'bg-red-500 border-red-500 text-white'
+                                : 'border-slate-200'
+                            }
+                          `}>
+                            {isVerified && <Check size={14} />}
+                            {isRejected && <XCircle size={14} />}
+                          </div>
+                          
+                          <span className={`
+                            text-sm font-medium
+                            ${isVerified ? 'text-slate-900' : 'text-slate-500'}
+                          `}>
+                            Disability Proof
+                          </span>
+                          
+                          {isRejected && (
+                            <span className="text-xs text-red-500 ml-auto">
+                              Rejected
+                            </span>
+                          )}
                         </div>
-                        <span className={`text-sm font-medium ${doc.status === 'verified' ? 'text-slate-900' : 'text-slate-500'}`}>
-                          {doc.type.charAt(0).toUpperCase() + doc.type.slice(1)} Proof
-                        </span>
-                      </label>
-                    ))}
+                      );
+                    })}
                   </div>
+
+                  {/* Continue Button */}
                   <button 
-                    disabled={app.documents.some(d => d.status !== 'verified')}
-                    onClick={() => setVerificationStep(2)}
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all"
+                    disabled={!allDocumentsVerified}
+                    onClick={() => {
+                      if (allDocumentsVerified) {
+                        setVerificationStep(2);
+                      }
+                    }}
+                    className={`
+                      w-full font-bold py-3 rounded-xl transition-all
+                      ${allDocumentsVerified 
+                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer' 
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      }
+                    `}
                   >
                     Continue to Eligibility
                   </button>
+
+                  {!allDocumentsVerified && (
+                    <p className="text-xs text-amber-600 text-center">
+                      Please verify all documents before proceeding
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -284,9 +433,9 @@ export const ApplicationDetailsPage = () => {
                   <h4 className="font-bold text-slate-900">2. Eligibility Verification</h4>
                   <div className="p-6 rounded-2xl border-2 border-dashed border-slate-200 space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-slate-500">Disability % (≥40)</span>
-                      <span className={`font-bold ${app.disabilityPercentage >= 40 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {app.disabilityPercentage}% {app.disabilityPercentage >= 40 ? '✓' : '✗'}
+                      <span className="text-sm text-slate-500">Disability % (≥30)</span>
+                      <span className={`font-bold ${app.disabilityPercentage >= 30 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {app.disabilityPercentage}% {app.disabilityPercentage >= 30 ? '✓' : '✗'}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -406,7 +555,90 @@ export const ApplicationDetailsPage = () => {
         </div>
       </div>
 
-      {/* Rejection Modal */}
+      {/* Document Rejection Modal */}
+      <AnimatePresence>
+        {showDocVerifyModal && selectedDoc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 bg-red-500 text-white">
+                <h3 className="text-lg font-bold">Reject Document</h3>
+                <p className="text-sm text-red-100 mt-1">
+                  Application will be rejected permanently
+                </p>
+              </div>
+              
+              <div className="p-8 space-y-6">
+                <div>
+                  <p className="text-sm text-slate-600 mb-2">
+                    Rejecting: <span className="font-bold">{selectedDoc.name}</span>
+                  </p>
+                  <button
+                    onClick={() => handleViewDocument(selectedDoc)}
+                    className="w-full mb-4 px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center gap-2 text-slate-700 font-medium transition-all"
+                  >
+                    <Eye size={18} />
+                    View Document
+                  </button>
+                </div>
+
+                <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                  <p className="text-sm text-yellow-800 flex items-start gap-2">
+                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Note:</strong> Rejecting this document will also reject the entire application. 
+                      This action cannot be undone.
+                    </span>
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700">Reason for Rejection</label>
+                  <textarea 
+                    value={docRejectionReason}
+                    onChange={(e) => setDocRejectionReason(e.target.value)}
+                    placeholder="Please provide a reason for rejecting this document..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-500 h-24"
+                  />
+                </div>
+
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                      setShowDocVerifyModal(false);
+                      setSelectedDoc(null);
+                      setDocRejectionReason('');
+                    }}
+                    className="flex-1 px-4 py-3 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleDocVerification}
+                    disabled={!docRejectionReason || loading}
+                    className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-slate-200 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        Rejecting...
+                      </>
+                    ) : (
+                      'Confirm Rejection'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Application Rejection Modal */}
       <AnimatePresence>
         {showRejectionModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
@@ -441,6 +673,8 @@ export const ApplicationDetailsPage = () => {
                     <textarea 
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-red-500 h-24"
                       placeholder="Enter specific reason..."
+                      value={docRejectionReason}
+                      onChange={(e) => setDocRejectionReason(e.target.value)}
                     />
                   </div>
                 )}

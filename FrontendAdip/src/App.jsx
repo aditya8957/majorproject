@@ -77,10 +77,15 @@ function App() {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/auth/:mode" element={<AuthPage />} />
 
+             <Route
+            path="/admin/*"
+            element={isAuthenticated && user?.role === "admin" ? <Admin /> : <Navigate to="/" replace />}
+          />
+
             {/* Admin Routes - Only accessible if user has admin role */}
-            <Route element={<AdminRoute isAdmin={isAdmin} />}>
+            {/* <Route element={<AdminRoute isAdmin={isAdmin} />}>
               <Route path="/admin/*" element={<Admin />} />
-            </Route>
+            </Route> */}
 
             {/* Protected Routes - For authenticated beneficiaries */}
             <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>

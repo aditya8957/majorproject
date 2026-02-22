@@ -1,7 +1,7 @@
-import React from 'react';
-import { useSelector } from 'react-redux';
-import { ApplicationStatus } from '../store';
-import { FileText, Clock, CheckCircle2, Building2, Download } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchApplications, fetchNGOs, fetchDashboardStats } from '../store';
+import { FileText, Clock, CheckCircle2, Building2, Download, AlertCircle } from 'lucide-react';
 import { motion } from "framer-motion";  
 import {
   BarChart,
@@ -17,59 +17,85 @@ import {
 } from 'recharts';
 
 export const DashboardOverview = () => {
+  const dispatch = useDispatch();
+  const { applications, ngos, dashboardStats, loading, error } = useSelector((state) => state.app);
 
-  const applications = useSelector((state) => state.app.applications);
-  const ngos = useSelector((state) => state.app.ngos);
+  useEffect(() => {
+    // Check if token exists before fetching
+    const token = localStorage.getItem('token');
+    if (token) {
+      dispatch(fetchApplications());
+      dispatch(fetchNGOs());
+      dispatch(fetchDashboardStats());
+    } else {
+      console.error('No token found. Please login again.');
+    }
+  }, [dispatch]);
 
   const stats = [
     {
       label: 'Total Applications',
-      value: applications.length,
+      value: dashboardStats?.stats?.total || 0,
       icon: FileText,
       color: 'bg-blue-500'
     },
     {
       label: 'Pending Verification',
-      value: applications.filter(
-        (a) => a.status === ApplicationStatus.PENDING_VERIFICATION
-      ).length,
+      value: dashboardStats?.stats?.pending || 0,
       icon: Clock,
-      color: 'bg-yellow-500'
+      color: 'bg-red-500'
     },
     {
       label: 'Approved',
-      value: applications.filter(
-        (a) => a.status === ApplicationStatus.APPROVED
-      ).length,
+      value: dashboardStats?.stats?.approved || 0,
       icon: CheckCircle2,
+      color: 'bg-yellow-500'
+    },
+     {
+      label: 'NGO Assigned',
+      value: dashboardStats?.stats?.processing || 0,
+      icon: Building2,
       color: 'bg-green-500'
     },
     {
       label: 'Active NGOs',
-      value: ngos.length,
+      value: ngos?.length || 0,
       icon: Building2,
       color: 'bg-purple-500'
     },
   ];
 
-  const chartData = [
-    { name: 'Jan', apps: 45 },
-    { name: 'Feb', apps: 52 },
-    { name: 'Mar', apps: 38 },
-    { name: 'Apr', apps: 65 },
-    { name: 'May', apps: 48 },
-    { name: 'Jun', apps: 72 },
-  ];
+  if (loading && !dashboardStats?.stats) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent"></div>
+      </div>
+    );
+  }
 
-  const pieData = [
-    { name: 'Approved', value: 65, color: '#10b981' },
-    { name: 'Rejected', value: 15, color: '#ef4444' },
-    { name: 'Pending', value: 20, color: '#f59e0b' },
-  ];
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
+          <p className="text-red-500 font-medium">{error}</p>
+          <button 
+            onClick={() => {
+              dispatch(fetchApplications());
+              dispatch(fetchNGOs());
+              dispatch(fetchDashboardStats());
+            }}
+            className="mt-4 px-4 py-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -116,48 +142,53 @@ export const DashboardOverview = () => {
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
         {/* Bar Chart */}
         <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
           <h3 className="text-lg font-bold text-slate-900 mb-6">
             Application Trends
           </h3>
 
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#f1f5f9"
-                />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#64748b', fontSize: 12 }}
-                />
-                <Tooltip
-                  cursor={{ fill: '#f8fafc' }}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
-                  }}
-                />
-                <Bar
-                  dataKey="apps"
-                  fill="#10b981"
-                  radius={[4, 4, 0, 0]}
-                  barSize={40}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-80 w-full min-w-[300px] min-h-[300px]">
+            {dashboardStats?.chartData && dashboardStats.chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardStats.chartData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="#f1f5f9"
+                  />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: 'none',
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                    }}
+                  />
+                  <Bar
+                    dataKey="apps"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                    barSize={40}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400">
+                No chart data available
+              </div>
+            )}
           </div>
         </div>
 
@@ -167,27 +198,33 @@ export const DashboardOverview = () => {
             Status Distribution
           </h3>
 
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+           <div className="h-64 w-full min-w-[200px] min-h-[200px]">
+            {dashboardStats?.pieData && dashboardStats.pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={dashboardStats.pieData}
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {dashboardStats.pieData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color || '#10b981'} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400">
+                No data available
+              </div>
+            )}
           </div>
 
           <div className="space-y-3 mt-4">
-            {pieData.map((item, i) => (
+            {(dashboardStats?.pieData || []).map((item, i) => (
               <div key={i} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div
@@ -199,13 +236,12 @@ export const DashboardOverview = () => {
                   </span>
                 </div>
                 <span className="text-sm font-bold text-slate-900">
-                  {item.value}%
+                  {item.value}
                 </span>
               </div>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );

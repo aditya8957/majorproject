@@ -1,4 +1,41 @@
 import { configureStore, createSlice } from "@reduxjs/toolkit";
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+// Create axios instance
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true, // Important for cookies
+});
+
+// Add token from localStorage to headers
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log('Making request to:', config.url, 'with token:', token ? 'Yes' : 'No');
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error('Unauthorized! Token might be invalid or expired');
+      // Optionally redirect to login
+      // window.location.href = '/auth/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 /* ---------------- Application Status ---------------- */
 
@@ -13,158 +50,213 @@ export const ApplicationStatus = {
   REJECTED: "REJECTED",
 };
 
-/* ---------------- Mock Data ---------------- */
+/* ---------------- Initial State ---------------- */
 
-const mockNGOs = [
-  {
-    id: "ngo-1",
-    name: "Helping Hands Foundation",
-    location: "New Delhi",
-    deviceTypes: ["Wheelchair", "Hearing Aid"],
-    workload: 12,
-    capacity: 50,
-    contact: "+91 98765 43210",
-  },
-  {
-    id: "ngo-2",
-    name: "Vision for All",
-    location: "Mumbai",
-    deviceTypes: ["Braille Kit", "Smart Cane"],
-    workload: 8,
-    capacity: 30,
-    contact: "+91 98765 43211",
-  },
-  {
-    id: "ngo-3",
-    name: "Mobility Plus",
-    location: "Bangalore",
-    deviceTypes: ["Prosthetic Limb", "Crutches"],
-    workload: 25,
-    capacity: 40,
-    contact: "+91 98765 43212",
-  },
-];
-
-
-const mockApplications = [
-  {
-    id: 'ADIP-2024-001',
-    applicantName: 'Rajesh Kumar',
-    date: '2024-02-15',
-    disabilityType: 'Locomotor',
-    disabilityPercentage: 65,
-    monthlyIncome: 12000,
-    address: '123, Gandhi Nagar, Delhi',
-    contact: '+91 99887 76655',
-    deviceRequested: 'Motorized Wheelchair',
-    deviceType: 'Locomotor Aid',
-    estimatedCost: 35000,
-    status: ApplicationStatus.PENDING_VERIFICATION,
-    documents: [
-      { id: 'doc1', name: 'Disability_Cert.pdf', type: 'disability', status: 'pending', url: '#' },
-      { id: 'doc2', name: 'Income_Proof.jpg', type: 'income', status: 'pending', url: '#' },
-      { id: 'doc3', name: 'Aadhar_Card.pdf', type: 'identity', status: 'pending', url: '#' },
-    ],
-    trackingHistory: [{ status: ApplicationStatus.PENDING_VERIFICATION, date: '2024-02-15' }],
-  },
-  {
-    id: 'ADIP-2024-002',
-    applicantName: 'Anita Sharma',
-    date: '2024-02-18',
-    disabilityType: 'Hearing Impairment',
-    disabilityPercentage: 50,
-    monthlyIncome: 8000,
-    address: '45, Sector 12, Noida',
-    contact: '+91 99887 76644',
-    deviceRequested: 'Digital Hearing Aid',
-    deviceType: 'Hearing Aid',
-    estimatedCost: 15000,
-    status: ApplicationStatus.APPROVED,
-    documents: [],
-    trackingHistory: [{ status: ApplicationStatus.PENDING_VERIFICATION, date: '2024-02-18' }, { status: ApplicationStatus.APPROVED, date: '2024-02-20' }],
-  },
-  {
-    id: 'ADIP-2024-003',
-    applicantName: 'Suresh Raina',
-    date: '2024-02-10',
-    disabilityType: 'Visual Impairment',
-    disabilityPercentage: 100,
-    monthlyIncome: 5000,
-    address: '78, Model Town, Ludhiana',
-    contact: '+91 99887 76633',
-    deviceRequested: 'Smart Cane',
-    deviceType: 'Visual Aid',
-    estimatedCost: 8000,
-    status: ApplicationStatus.NGO_ASSIGNED,
-    assignedNGOId: 'ngo-2',
-    documents: [],
-    trackingHistory: [
-      { status: ApplicationStatus.PENDING_VERIFICATION, date: '2024-02-10' },
-      { status: ApplicationStatus.APPROVED, date: '2024-02-12' },
-      { status: ApplicationStatus.NGO_ASSIGNED, date: '2024-02-14' }
-    ],
-  },
-];
+const initialState = {
+  applications: [],
+  ngos: [],
+  selectedApplication: null,
+  loading: false,
+  error: null,
+  dashboardStats: {
+    stats: {
+      total: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      processing: 0
+    },
+    chartData: [],
+    pieData: []
+  }
+};
 
 /* ---------------- Slice ---------------- */
 
 const appSlice = createSlice({
   name: "app",
-  initialState: {
-    applications: mockApplications,
-    ngos: mockNGOs,
-    // REMOVED: isAuthenticated: false,
-    // REMOVED: currentUser: null,
-  },
+  initialState,
   reducers: {
-    // REMOVED: login reducer
-    // REMOVED: logout reducer
-    
-    updateApplicationStatus: (state, action) => {
-      const app = state.applications.find(
-        (a) => a.id === action.payload.id
-      );
-
-      if (app) {
-        app.status = action.payload.status;
-
-        if (action.payload.rejectionReason)
-          app.rejectionReason = action.payload.rejectionReason;
-
-        if (action.payload.ngoId)
-          app.assignedNGOId = action.payload.ngoId;
-
-        app.trackingHistory.push({
-          status: action.payload.status,
-          date: new Date().toISOString().split("T")[0],
-          comment: action.payload.comment,
-        });
+    setLoading: (state, action) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action) => {
+      state.error = action.payload;
+      state.loading = false;
+    },
+    setApplications: (state, action) => {
+      state.applications = action.payload;
+      state.loading = false;
+    },
+    setSelectedApplication: (state, action) => {
+      state.selectedApplication = action.payload;
+      state.loading = false;
+    },
+    updateApplicationInList: (state, action) => {
+      const index = state.applications.findIndex(app => app.id === action.payload.id);
+      if (index !== -1) {
+        state.applications[index] = action.payload;
       }
     },
-
-    verifyDocument: (state, action) => {
-      const app = state.applications.find(
-        (a) => a.id === action.payload.appId
-      );
-
-      if (app) {
-        const doc = app.documents.find(
-          (d) => d.id === action.payload.docId
-        );
-        if (doc) doc.status = action.payload.status;
-      }
+    setNGOs: (state, action) => {
+      state.ngos = action.payload;
     },
-  },
+    setDashboardStats: (state, action) => {
+      state.dashboardStats = action.payload;
+    },
+    updateDocumentStatus: (state, action) => {
+      const { applicationId, documentId, status } = action.payload;
+      
+      const app = state.applications.find(a => a.id === applicationId);
+      if (app) {
+        const doc = app.documents?.find(d => d.id === documentId);
+        if (doc) doc.status = status;
+      }
+
+      if (state.selectedApplication?.id === applicationId) {
+        const doc = state.selectedApplication.documents?.find(d => d.id === documentId);
+        if (doc) doc.status = status;
+      }
+    }
+  }
 });
 
-/* ---------------- Exports ---------------- */
+/* ---------------- Actions ---------------- */
 
 export const {
-  // REMOVED: login,
-  // REMOVED: logout,
-  updateApplicationStatus,
-  verifyDocument,
+  setLoading,
+  setError,
+  setApplications,
+  setSelectedApplication,
+  updateApplicationInList,
+  setNGOs,
+  setDashboardStats,
+  updateDocumentStatus  
 } = appSlice.actions;
+
+/* ---------------- API Calls ---------------- */
+
+// Fetch all applications
+export const fetchApplications = () => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    const response = await api.get('/admin/applications');
+    dispatch(setApplications(response.data));
+  } catch (error) {
+    dispatch(setError(error.response?.data?.error || 'Failed to fetch applications'));
+  }
+};
+
+// Fetch single application
+export const fetchApplicationById = (id) => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    const response = await api.get(`/admin/applications/${id}`);
+    dispatch(setSelectedApplication(response.data));
+  } catch (error) {
+    dispatch(setError(error.response?.data?.error || 'Failed to fetch application'));
+  }
+};
+
+// Update application status
+export const updateApplicationStatus = (data) => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    await api.put(`/admin/applications/${data.id}/status`, data);
+    dispatch(fetchApplications()); // Refresh the list
+    dispatch(setLoading(false));
+    return { success: true };
+  } catch (error) {
+    dispatch(setError(error.response?.data?.error || 'Failed to update status'));
+    return { success: false };
+  }
+};
+
+
+
+// Fetch document for viewing
+export const fetchDocument = (applicationId) => async (dispatch) => {
+  try {
+    const response = await api.get(`/admin/applications/${applicationId}/document`);
+    return response.data;
+  } catch (error) {
+    dispatch(setError('Failed to fetch document'));
+    return null;
+  }
+};
+
+export const verifyDocumentStatus = (data) => async (dispatch) => {
+  try {
+    
+    const appId = String(data.appId);
+    
+    dispatch(setLoading(true));
+    
+    // 1. Verify document
+    const response = await api.put(`/admin/applications/${appId}/verify-document`, {
+      status: data.status,
+      rejectionReason: data.rejectionReason || ''
+    });
+    
+ 
+    // 2. Updated application data
+    const updatedApp = response.data.application;
+    
+    // 3. Update Redux store with FRESH data
+    dispatch(setSelectedApplication(updatedApp));
+    
+    // 4. Update applications list bhi
+    const appsResponse = await api.get('/admin/applications');
+    dispatch(setApplications(appsResponse.data));
+    
+    dispatch(setLoading(false));
+    
+    // 5. Success message
+    console.log('Document verified successfully');
+    
+    return { success: true };
+  } catch (error) {
+    
+    dispatch(setError(error.response?.data?.message || 'Failed to verify document'));
+    return { success: false };
+  }
+};
+
+// Fetch NGOs
+export const fetchNGOs = () => async (dispatch) => {
+  try {
+    const response = await api.get('/admin/ngos');
+    dispatch(setNGOs(response.data));
+  } catch (error) {
+    dispatch(setError(error.response?.data?.error || 'Failed to fetch NGOs'));
+  }
+};
+
+// Assign NGO
+export const assignNGO = (applicationId, ngoId) => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    await api.post(`/admin/applications/${applicationId}/assign-ngo`, { ngoId });
+    dispatch(fetchApplications()); // Refresh the list
+    dispatch(setLoading(false));
+    return { success: true };
+  } catch (error) {
+    dispatch(setError(error.response?.data?.error || 'Failed to assign NGO'));
+    return { success: false };
+  }
+};
+
+// Fetch dashboard stats
+export const fetchDashboardStats = () => async (dispatch) => {
+  try {
+    const response = await api.get('/admin/dashboard/stats');
+    dispatch(setDashboardStats(response.data));
+  } catch (error) {
+    dispatch(setError(error.response?.data?.error || 'Failed to fetch stats'));
+  }
+};
+
+/* ---------------- Store ---------------- */
 
 export const store = configureStore({
   reducer: {

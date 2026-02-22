@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useAccessibility } from '../context/AccessibilityContext';
@@ -56,7 +55,10 @@ export function ApplicationStatus() {
   };
 
   const getStatusInfo = (status) => {
-    switch (status) {
+    // Convert to lowercase to handle both 'PROCESSING' and 'processing'
+    const statusLower = status?.toLowerCase();
+    
+    switch (statusLower) {
       case 'approved':
         return {
           icon: <CheckCircleIcon className="w-5 h-5" />,
@@ -67,6 +69,17 @@ export function ApplicationStatus() {
           message: language === 'en'
             ? 'Your application has been approved! You will be contacted soon for device distribution.'
             : 'आपका आवेदन स्वीकृत कर लिया गया है! उपकरण वितरण के लिए आपसे जल्द ही संपर्क किया जाएगा।'
+        };
+      case 'processing':
+        return {
+          icon: <ClockIcon className="w-5 h-5" />,
+          label: language === 'en' ? 'Processing' : 'प्रक्रियाधीन',
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-50',
+          borderColor: 'border-blue-200',
+          message: language === 'en'
+            ? 'Your device is being prepared for distribution.'
+            : 'आपका उपकरण वितरण के लिए तैयार किया जा रहा है।'
         };
       case 'rejected':
         return {
@@ -200,32 +213,3 @@ export function ApplicationStatus() {
     </div>
   );
 }
-
-
-
-
-//   // const mockApplications = [{
-//   //   id: 'ADIP2023001',
-//   //   status: 'approved',
-//   //   name: 'Rajesh Kumar',
-//   //   appliedDate: '2023-05-15',
-//   //   updatedDate: '2023-06-10',
-//   //   device: 'Wheelchair',
-//   //   center: 'ALIMCO Delhi'
-//   // }, {
-//   //   id: 'ADIP2023002',
-//   //   status: 'pending',
-//   //   name: 'Priya Sharma',
-//   //   appliedDate: '2023-07-20',
-//   //   updatedDate: '2023-07-25',
-//   //   device: 'Hearing Aid',
-//   //   center: 'Artificial Limbs Manufacturing Corporation, Mumbai'
-//   // }, {
-//   //   id: 'ADIP2023003',
-//   //   status: 'rejected',
-//   //   name: 'Amit Patel',
-//   //   appliedDate: '2023-06-05',
-//   //   updatedDate: '2023-06-30',
-//   //   device: 'Prosthetic Leg',
-//   //   center: 'National Institute for the Empowerment of Persons with Disabilities, Chennai'
-//   // }];

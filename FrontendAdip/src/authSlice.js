@@ -1,18 +1,20 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import axiosClient from './utils/axiosClient'
 
-// --------------------- THUNKS ---------------------
-
 export const registerUser = createAsyncThunk(
   'auth/register',
   async (userData, { rejectWithValue }) => {
     try {
       const response = await axiosClient.post('/user/register', userData);
+      
+      // ✅ Token store karo
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+      }
+      
       return response.data.user;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.msg || 'User already exists'
-      );
+      return rejectWithValue(error);
     }
   }
 );
@@ -22,11 +24,19 @@ export const loginUser = createAsyncThunk(
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await axiosClient.post('/user/login', credentials);
+      
+      // ✅ Token store karo
+      console.log('Login response:', response.data); // Debug
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        console.log('Token stored:', response.data.token);
+      } else {
+        console.log('No token in response');
+      }
+      
       return response.data.user;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.msg || 'Invalid credentials'
-      );
+      return rejectWithValue(error);
     }
   }
 );
@@ -53,9 +63,10 @@ export const checkAuth = createAsyncThunk(
       return data.user;
     } catch (error) {
       if (error.response?.status === 401) {
-        return rejectWithValue('Not authenticated');
+        // Return special marker for "no session" (normal case)
+        return rejectWithValue({ isNoSession: true });
       }
-      return rejectWithValue(error.response?.data?.msg || 'Something went wrong');
+      return rejectWithValue(error);
     }
   }
 );
@@ -67,28 +78,22 @@ export const logoutUser = createAsyncThunk(
       await axiosClient.post('/user/logout');
       return null;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.msg || 'Something went wrong');
+      return rejectWithValue(error);
     }
   }
 );
 
-// OPTIONAL: Add updateProfile thunk agar aapko profile update karna hai
 export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
-  async (profileData, { getState, rejectWithValue }) => {
+  async (profileData, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
       const response = await axiosClient.put('/user/profile', profileData);
       return response.data.user;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.msg || 'Failed to update profile'
-      );
+      return rejectWithValue(error.response?.data?.msg || 'Update failed');
     }
   }
 );
-
-// --------------------- SLICE ---------------------
 
 const authSlice = createSlice({
   name: 'auth',
@@ -96,27 +101,16 @@ const authSlice = createSlice({
     user: null,
     isAuthenticated: false,
     loading: false,
-    error: null,
-    // Optional: Add these if needed
-    profileUpdateLoading: false,
-    profileUpdateSuccess: false
+    error: null
   },
   reducers: {
-    // Optional: Clear error manually
     clearError: (state) => {
-      state.error = null;
-    },
-    // Optional: Reset auth state
-    resetAuth: (state) => {
-      state.user = null;
-      state.isAuthenticated = false;
-      state.loading = false;
       state.error = null;
     }
   },
   extraReducers: (builder) => {
     builder
-      // Register User
+      // Register User Cases
       .addCase(registerUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -125,15 +119,16 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = !!action.payload;
         state.user = action.payload;
+        state.error = null;
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Something went wrong';
+        state.error = action.payload?.message || 'Something went wrong';
         state.isAuthenticated = false;
         state.user = null;
       })
-
-      // Login User
+  
+      // Login User Cases
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -142,32 +137,35 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = !!action.payload;
         state.user = action.payload;
+        state.error = null;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Invalid credentials';
+        state.error = action.payload?.message || 'Something went wrong';
         state.isAuthenticated = false;
         state.user = null;
       })
 
-      // Google Login
-      .addCase(googleLogin.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(googleLogin.fulfilled, (state, action) => {
-        state.loading = false;
-        state.isAuthenticated = !!action.payload;
-        state.user = action.payload;
-      })
-      .addCase(googleLogin.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Google login failed';
-        state.isAuthenticated = false;
-        state.user = null;
-      })
+            // Google Login
+            .addCase(googleLogin.pending, (state) => {
+              state.loading = true;
+              state.error = null;
+            })
+            .addCase(googleLogin.fulfilled, (state, action) => {
+              state.loading = false;
+              state.isAuthenticated = !!action.payload;
+              state.user = action.payload;
+            })
+            .addCase(googleLogin.rejected, (state, action) => {
+              state.loading = false;
+              state.error = action.payload || 'Google login failed';
+              state.isAuthenticated = false;
+              state.user = null;
+            })
 
-      // Check Auth
+            
+  
+      // Check Auth Cases - FIXED
       .addCase(checkAuth.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -176,15 +174,38 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = !!action.payload;
         state.user = action.payload;
+        state.error = null;
       })
       .addCase(checkAuth.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Something went wrong';
+        
+        // Only show error if it's NOT a "no session" case (401)
+        if (action.payload?.isNoSession) {
+          // Normal case - user is not logged in
+          state.error = null;
+        } else {
+          // Real error (500, network, etc.)
+          state.error = action.payload?.message || 'Something went wrong';
+        }
+        
         state.isAuthenticated = false;
         state.user = null;
       })
 
-      // Logout
+      .addCase(updateProfile.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload;
+      })
+      .addCase(updateProfile.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+  
+      // Logout User Cases
       .addCase(logoutUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -197,38 +218,13 @@ const authSlice = createSlice({
       })
       .addCase(logoutUser.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Something went wrong';
-        // Even if logout fails, clear user data
-        state.user = null;
+        state.error = action.payload?.message || 'Something went wrong';
         state.isAuthenticated = false;
-      })
-
-      // Optional: Update Profile
-      .addCase(updateProfile.pending, (state) => {
-        state.profileUpdateLoading = true;
-        state.profileUpdateSuccess = false;
-        state.error = null;
-      })
-      .addCase(updateProfile.fulfilled, (state, action) => {
-        state.profileUpdateLoading = false;
-        state.profileUpdateSuccess = true;
-        state.user = action.payload; // Update user with new data
-      })
-      .addCase(updateProfile.rejected, (state, action) => {
-        state.profileUpdateLoading = false;
-        state.profileUpdateSuccess = false;
-        state.error = action.payload || 'Failed to update profile';
+        state.user = null;
       });
+
   }
 });
 
-// Export actions
-export const { clearError, resetAuth } = authSlice.actions;
-
-// Selectors
-export const selectUser = (state) => state.auth.user;
-export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
-export const selectAuthLoading = (state) => state.auth.loading;
-export const selectAuthError = (state) => state.auth.error;
-
+export const { clearError } = authSlice.actions;
 export default authSlice.reducer;
