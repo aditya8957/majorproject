@@ -27,7 +27,7 @@ export const ApplicationDetailsPage = () => {
   const dispatch = useDispatch();
 
   // ✅ Redux state
-  const { loading } = useSelector((state) => state.app);
+  const { loading, ngoRegistrationRequests } = useSelector((state) => state.app);
   
   // ✅ Force update ke liye local state
   const [updateTrigger, setUpdateTrigger] = useState(0);
@@ -37,6 +37,25 @@ export const ApplicationDetailsPage = () => {
   );
 
   const ngos = useSelector((state) => state.app.ngos);
+
+  // Approved NGOs coming from registration requests (map to unified shape)
+  const approvedNGOs = (ngoRegistrationRequests?.approved || []).map(ngo => ({
+    id: ngo._id,
+    name: ngo.ngoName,
+    location: `${ngo.state}, ${ngo.district}`,
+    contact: ngo.phone,
+    address: ngo.address,
+    registrationNumber: ngo.registrationNumber,
+    status: 'Approved',
+    approvedAt: ngo.approvedAt,
+    documents: ngo.documents
+  }));
+
+  // Combine existing NGOs with newly approved ones (avoid duplicates by id)
+  const availableNGOs = Array.from(new Map([
+    ...ngos.map(n => [n.id, n]),
+    ...approvedNGOs.map(n => [n.id, n])
+  ]).values());
 
   const [verificationStep, setVerificationStep] = useState(1);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -495,22 +514,71 @@ export const ApplicationDetailsPage = () => {
                   <h4 className="font-bold text-slate-900">4. NGO Assignment</h4>
                   <div className="space-y-4">
                     <label className="text-xs font-bold text-slate-400 uppercase">Select Implementing Agency</label>
+                    {approvedNGOs.length === 0 && (
+                      <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-sm text-yellow-800">
+                        No approved NGOs available. Approve NGOs from the NGO management panel before assigning.
+                      </div>
+                    )}
                     <select 
                       value={selectedNGOId}
                       onChange={(e) => setSelectedNGOId(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
                     >
-                      <option value="">Select an NGO...</option>
-                      {ngos.filter(n => n.deviceTypes.includes(app.deviceType) || n.deviceTypes.some(dt => app.deviceRequested.includes(dt))).map(ngo => (
-                        <option key={ngo.id} value={ngo.id}>{ngo.name} ({ngo.location})</option>
-                      ))}
+                      <option value="">Select an Approved NGO...</option>
+                      {approvedNGOs.length > 0 ? (
+                        approvedNGOs.map(ngo => (
+                          <option key={ngo.id} value={ngo.id}>
+                            {ngo.name} ({ngo.location}) - Approved
+                          </option>
+                        ))
+                      ) : (
+                        <option disabled>No approved NGOs available</option>
+                      )}
+                      
+                      {/* Show legacy NGOs under an optgroup for reference */}
+                      {ngos && ngos.length > 0 && (
+                        <optgroup label="Other Agencies">
+                          {ngos.map(ngo => (
+                            <option key={ngo.id} value={ngo.id}>
+                              {ngo.name} ({ngo.location})
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
 
                     {selectedNGOId && (
-                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
-                        <p className="text-sm font-bold text-slate-900">{ngos.find(n => n.id === selectedNGOId)?.name}</p>
-                        <p className="text-xs text-slate-500">Workload: {ngos.find(n => n.id === selectedNGOId)?.workload}/{ngos.find(n => n.id === selectedNGOId)?.capacity} units</p>
-                        <p className="text-xs text-slate-500">Contact: {ngos.find(n => n.id === selectedNGOId)?.contact}</p>
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                        {(() => {
+                          const selectedNGO = availableNGOs.find(n => n.id === selectedNGOId);
+                          return selectedNGO ? (
+                            <>
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">{selectedNGO.name}</p>
+                                  <p className="text-xs text-slate-500 mt-1">{selectedNGO.location}</p>
+                                </div>
+                                {selectedNGO.status === 'Approved' && (
+                                  <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg">
+                                    ✓ Approved
+                                  </span>
+                                )}
+                              </div>
+                              <div className="pt-2 border-t border-slate-200 space-y-2">
+                                <p className="text-xs text-slate-500">Contact: {selectedNGO.contact}</p>
+                                {selectedNGO.address && (
+                                  <p className="text-xs text-slate-500">Address: {selectedNGO.address}</p>
+                                )}
+                                {selectedNGO.registrationNumber && (
+                                  <p className="text-xs text-slate-500">Reg #: {selectedNGO.registrationNumber}</p>
+                                )}
+                                {selectedNGO.workload !== undefined && selectedNGO.capacity !== undefined && (
+                                  <p className="text-xs text-slate-500">Workload: {selectedNGO.workload}/{selectedNGO.capacity} units</p>
+                                )}
+                              </div>
+                            </>
+                          ) : null;
+                        })()}
                       </div>
                     )}
                   </div>
@@ -537,9 +605,14 @@ export const ApplicationDetailsPage = () => {
                       <span className="text-xs text-slate-500">Device</span>
                       <span className="text-xs font-bold text-slate-900">{app.deviceRequested}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-xs text-slate-500">Assigned NGO</span>
-                      <span className="text-xs font-bold text-slate-900">{ngos.find(n => n.id === app.assignedNGOId || n.id === selectedNGOId)?.name}</span>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-slate-900">{availableNGOs.find(n => n.id === app.assignedNGOId || n.id === selectedNGOId)?.name}</p>
+                        {availableNGOs.find(n => n.id === app.assignedNGOId || n.id === selectedNGOId)?.status === 'Approved' && (
+                          <span className="text-xs text-emerald-600 font-medium">✓ Approved NGO</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button 

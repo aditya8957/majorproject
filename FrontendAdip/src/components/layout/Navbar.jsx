@@ -432,6 +432,15 @@ export function Navbar() {
                               <span className="flex-1">{language === "en" ? "My Applications" : "मेरे आवेदन"}</span>
                             </Link>
 
+                            <Link
+                              to="/ngo/register"
+                              className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-green-50 transition-all duration-300 group"
+                              onClick={() => setShowUserMenu(false)}
+                            >
+                              <Award className="h-4 w-4 text-gray-500 group-hover:text-green-600" />
+                              <span className="flex-1">{language === "en" ? "NGO Registration" : "एनजीओ पंजीकरण"}</span>
+                            </Link>
+
                             {/* Divider */}
                             <div className="my-2 border-t border-gray-100" />
 

@@ -7,6 +7,7 @@ import { Navbar } from "./components/layout/Navbar";
 import { Home } from "./pages/Home";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
 import { Registration } from "./pages/Registration";
+import { NGOApplication } from "./pages/NGOApplication";
 import { DeviceCatalog } from "./pages/DeviceCatalog";
 import { Help } from "./pages/Help";
 import { Contact } from "./pages/Contact";
@@ -93,6 +94,7 @@ function App() {
               <Route path="/profile/applications" element={<ProfilePage />} />
               <Route path="/beneficiary/apply" element={<Registration />} />
               <Route path="/application/status" element={<ApplicationStatus />} />
+              <Route path="/ngo/register" element={<NGOApplication />} />
             </Route>
           </Routes>
         </main>

@@ -56,6 +56,11 @@ const initialState = {
   applications: [],
   ngos: [],
   selectedApplication: null,
+  ngoRegistrationRequests: {
+    pending: [],
+    approved: [],
+    rejected: []
+  },
   loading: false,
   error: null,
   dashboardStats: {
@@ -64,7 +69,10 @@ const initialState = {
       pending: 0,
       approved: 0,
       rejected: 0,
-      processing: 0
+      processing: 0,
+      ngoRequestsPending: 0,
+      ngoApproved: 0,
+      ngoRejected: 0
     },
     chartData: [],
     pieData: []
@@ -117,6 +125,19 @@ const appSlice = createSlice({
         const doc = state.selectedApplication.documents?.find(d => d.id === documentId);
         if (doc) doc.status = status;
       }
+    },
+    setNGORegistrationRequests: (state, action) => {
+      state.ngoRegistrationRequests = action.payload;
+      state.loading = false;
+    },
+    setPendingNGORequests: (state, action) => {
+      state.ngoRegistrationRequests.pending = action.payload;
+    },
+    setApprovedNGOs: (state, action) => {
+      state.ngoRegistrationRequests.approved = action.payload;
+    },
+    setRejectedNGORequests: (state, action) => {
+      state.ngoRegistrationRequests.rejected = action.payload;
     }
   }
 });
@@ -131,7 +152,11 @@ export const {
   updateApplicationInList,
   setNGOs,
   setDashboardStats,
-  updateDocumentStatus  
+  updateDocumentStatus,
+  setNGORegistrationRequests,
+  setPendingNGORequests,
+  setApprovedNGOs,
+  setRejectedNGORequests
 } = appSlice.actions;
 
 /* ---------------- API Calls ---------------- */
@@ -253,6 +278,64 @@ export const fetchDashboardStats = () => async (dispatch) => {
     dispatch(setDashboardStats(response.data));
   } catch (error) {
     dispatch(setError(error.response?.data?.error || 'Failed to fetch stats'));
+  }
+};
+
+// Fetch NGO Registration Requests
+export const fetchNGORegistrationRequests = () => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    
+    // Fetch all NGO requests with different statuses
+    const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
+      api.get('/ngo/admin/requests?status=Pending'),
+      api.get('/ngo/admin/requests?status=Approved'),
+      api.get('/ngo/admin/requests?status=Rejected')
+    ]);
+
+    dispatch(setNGORegistrationRequests({
+      pending: pendingRes.data.data || [],
+      approved: approvedRes.data.data || [],
+      rejected: rejectedRes.data.data || []
+    }));
+
+    dispatch(setLoading(false));
+  } catch (error) {
+    dispatch(setError(error.response?.data?.message || 'Failed to fetch NGO requests'));
+  }
+};
+
+// Approve NGO Registration
+export const approveNGORequest = (ngoId, adminComment = '') => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    await api.put(`/ngo/admin/approve/${ngoId}`, { adminComment });
+    
+    // Refresh NGO requests
+    dispatch(fetchNGORegistrationRequests());
+    dispatch(setLoading(false));
+    
+    return { success: true };
+  } catch (error) {
+    dispatch(setError(error.response?.data?.message || 'Failed to approve NGO'));
+    return { success: false };
+  }
+};
+
+// Reject NGO Registration
+export const rejectNGORequest = (ngoId, adminComment) => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    await api.put(`/ngo/admin/reject/${ngoId}`, { adminComment });
+    
+    // Refresh NGO requests
+    dispatch(fetchNGORegistrationRequests());
+    dispatch(setLoading(false));
+    
+    return { success: true };
+  } catch (error) {
+    dispatch(setError(error.response?.data?.message || 'Failed to reject NGO'));
+    return { success: false };
   }
 };
 
