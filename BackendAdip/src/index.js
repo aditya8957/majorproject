@@ -10,6 +10,7 @@ const beneficiaryRouter = require("./routes/applyRouter");
 const applicationRouter = require('./routes/applicationRouter');
 const contactRouter = require("./routes/contactRouter");
 const adminRoutes = require("./routes/adminRoutes");
+const ngoRouter = require("./routes/ngoRoutes");
 
 
 const cors = require("cors");
@@ -28,6 +29,7 @@ app.use('/beneficiary', beneficiaryRouter);
 app.use('/application', applicationRouter);
 app.use('/api', contactRouter); 
 app.use('/admin', adminRoutes);
+app.use('/ngo', ngoRouter);
 
 
 

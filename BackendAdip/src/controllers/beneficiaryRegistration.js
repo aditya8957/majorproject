@@ -54,7 +54,6 @@ const registerBeneficiary = async (req, res) => {
 
     const beneficiary = await Beneficiary.create(req.body);
 
-    // ✅ Create track status record for public tracking
     await TrackStatus.create({
       applicationId: beneficiary.applicationId,
       name: beneficiary.fullName,

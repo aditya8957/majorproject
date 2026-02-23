@@ -118,7 +118,7 @@ router.get('/applications/:id', async (req, res) => {
   }
 });
 
-// ✅ UPDATED: PUT /admin/applications/:id/status - Update status (Now updates TrackStatus)
+// UPDATED: PUT /admin/applications/:id/status - Update status (Now updates TrackStatus)
 router.put('/applications/:id/status', async (req, res) => {
   try {
     const { status, comment, rejectionReason } = req.body;
@@ -134,11 +134,11 @@ router.put('/applications/:id/status', async (req, res) => {
     // Map frontend status to your status
     const dbStatus = mapToDBStatus(status);
     
-    // ✅ Update beneficiary status
+    // Update beneficiary status
     application.applicationStatus = dbStatus;
     await application.save();
 
-    // ✅ Update or create track status (for public tracking)
+    // Update or create track status (for public tracking)
     await TrackStatus.findOneAndUpdate(
       { applicationId: application.applicationId },
       {
@@ -153,7 +153,7 @@ router.put('/applications/:id/status', async (req, res) => {
       }
     );
 
-    console.log(`✅ Status updated for ${application.applicationId}: ${dbStatus}`);
+    // console.log(` Status updated for ${application.applicationId}: ${dbStatus}`);
 
     res.json({ 
       success: true,
@@ -166,7 +166,7 @@ router.put('/applications/:id/status', async (req, res) => {
   }
 });
 
-// ✅ UPDATED: PUT /admin/applications/:id/verify-document (Now updates TrackStatus when rejected)
+// UPDATED: PUT /admin/applications/:id/verify-document (Now updates TrackStatus when rejected)
 router.put('/applications/:id/verify-document', async (req, res) => {
   try {
     const { status, rejectionReason } = req.body; // 'verified' or 'rejected'
@@ -179,20 +179,20 @@ router.put('/applications/:id/verify-document', async (req, res) => {
       return res.status(404).json({ message: 'Application not found' });
     }
 
-    // ✅ Document status update
+    // Document status update
     application.disabilityCertificate.verificationStatus = status;
     application.disabilityCertificate.verifiedBy = req.user?._id;
     application.disabilityCertificate.verifiedAt = new Date();
     
     if (status === 'rejected' && rejectionReason) {
       application.disabilityCertificate.rejectionReason = rejectionReason;
-      // ✅ Application status bhi reject karo
+      // Application status bhi reject karo
       application.applicationStatus = 'rejected';
     }
 
     await application.save();
 
-    // ✅ Update TrackStatus for public tracking
+    // Update TrackStatus for public tracking
     await TrackStatus.findOneAndUpdate(
       { applicationId: application.applicationId },
       { 
@@ -204,9 +204,9 @@ router.put('/applications/:id/verify-document', async (req, res) => {
       { upsert: true }
     );
 
-    console.log(`✅ Document ${status} for ${application.applicationId}`);
+    // console.log(`Document ${status} for ${application.applicationId}`);
 
-    // ✅ Updated application return karo
+    // Updated application return karo
     const updatedApp = await Beneficiary.findOne({ 
       applicationId: application.applicationId 
     });
@@ -222,7 +222,7 @@ router.put('/applications/:id/verify-document', async (req, res) => {
   }
 });
 
-// ✅ UPDATED: POST /admin/applications/:id/assign-ngo (Now updates TrackStatus)
+//  UPDATED: POST /admin/applications/:id/assign-ngo (Now updates TrackStatus)
 router.post('/applications/:id/assign-ngo', async (req, res) => {
   try {
     const { ngoId } = req.body;
@@ -239,7 +239,7 @@ router.post('/applications/:id/assign-ngo', async (req, res) => {
     application.applicationStatus = 'processing';
     await application.save();
 
-    // ✅ Update track status with center info
+    //  Update track status with center info
     await TrackStatus.findOneAndUpdate(
       { applicationId: application.applicationId },
       { 
@@ -252,7 +252,7 @@ router.post('/applications/:id/assign-ngo', async (req, res) => {
       { upsert: true }
     );
 
-    console.log(`✅ NGO assigned to ${application.applicationId}`);
+    // console.log(` NGO assigned to ${application.applicationId}`);
 
     res.json({ 
       success: true,
@@ -384,7 +384,7 @@ router.get('/dashboard/stats', async (req, res) => {
   }
 });
 
-// ✅ NEW: Sync endpoint to populate TrackStatus for existing applications
+// NEW: Sync endpoint to populate TrackStatus for existing applications
 router.post('/sync-track-status', async (req, res) => {
   try {
     const beneficiaries = await Beneficiary.find({});
