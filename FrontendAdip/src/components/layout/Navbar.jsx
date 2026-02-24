@@ -74,13 +74,16 @@ export function Navbar() {
     { path: "/beneficiary/apply", label: language === "en" ? "Apply" : "आवेदन करें", icon: <ClipboardList className="h-4 w-4" /> },
     { path: "/devices", label: language === "en" ? "Devices" : "उपकरण", icon: <Package className="h-4 w-4" /> },
     { path: "/application/status", label: language === "en" ? "Track" : "ट्रैक करें", icon: <Search className="h-4 w-4" /> },
-    { path: "/eligibility-checker", label: language === "en" ? "Eligibility" : "पात्रता", icon: <Award className="h-4 w-4" /> },
+    // { path: "/eligibility-checker", label: language === "en" ? "Eligibility" : "पात्रता", icon: <Award className="h-4 w-4" /> },
+    { path: "/assistAi", label: language === "en" ? "AssistAI" : "सहायक AI", icon: <Sparkles className="h-4 w-4" /> },
+
   ];
 
   const moreNavItems = [
     { path: "/help", label: language === "en" ? "Help/FAQs" : "सहायता/प्रश्न", icon: <HelpCircle className="h-4 w-4" /> },
     { path: "/contact", label: language === "en" ? "Contact Us" : "संपर्क", icon: <Phone className="h-4 w-4" /> },
     { path: "/about", label: language === "en" ? "About Us" : "हमारे बारे में", icon: <Award className="h-4 w-4" /> },
+    { path: "/eligibility-checker", label: language === "en" ? "Check Eligibility" : "पात्रता", icon: <Award className="h-4 w-4" /> },
     { path: "/news", label: language === "en" ? "News & Updates" : "समाचार", icon: <Sparkles className="h-4 w-4" /> },
   ];
 

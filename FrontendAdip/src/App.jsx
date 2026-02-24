@@ -22,6 +22,8 @@ import './index.css';
 import ErrorBoundary from './components/ErrorBoundary'; 
 import ProfilePage from './components/ProfilePage'; 
 import Admin from "./adminPanel/Admin";
+import AssistAi from './pages/AssistAi';
+
 
 // Providers component
 const Providers = ({ children }) => (
@@ -95,6 +97,7 @@ function App() {
               <Route path="/beneficiary/apply" element={<Registration />} />
               <Route path="/application/status" element={<ApplicationStatus />} />
               <Route path="/ngo/register" element={<NGOApplication />} />
+              <Route path="/assistAi" element={<AssistAi />} />
             </Route>
           </Routes>
         </main>

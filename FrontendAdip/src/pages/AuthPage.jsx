@@ -10,7 +10,7 @@ import { useAccessibility } from "../context/AccessibilityContext";
 import LoadingBar from "react-top-loading-bar";
 import { useRef } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { jwtDecode } from "jwt-decode";
+import { jwtDecode } from "jwt-decode"; 
 
 
 
@@ -91,10 +91,75 @@ export default function AuthPage() {
     console.error("Google Login Failed");
   };
 
-  // Friendly error message
-  // const friendlyError =
-  //   error && (error.message || error.response?.data?.msg || "Something went wrong. Please try again.");
-  const friendlyError = error || null;
+  // Friendly error message helper
+  const getFriendlyError = (err) => {
+    if (!err) return null;
+    if (typeof err === "string") {
+      if (err.toLowerCase().includes("network"))
+        return "Network error. Please check your connection or server.";
+      return err;
+    }
+
+    // Axios-like errors
+    const resp = err.response || (err?.toJSON && err.toJSON()?.response) || null;
+    if (!resp && (err.isAxiosError || err.code === "ECONNABORTED")) {
+      return "Network error. Please check your connection or server.";
+    }
+
+    if (resp) {
+      const status = resp.status;
+      const data = resp.data || {};
+
+      // Collect possible message fields from common server shapes
+      const msgCandidates = [];
+      if (data.message) msgCandidates.push(data.message);
+      if (data.msg) msgCandidates.push(data.msg);
+      if (data.error && typeof data.error === "string") msgCandidates.push(data.error);
+      if (data.error && typeof data.error === "object" && data.error.message) msgCandidates.push(data.error.message);
+      if (Array.isArray(data.errors) && data.errors.length) {
+        const first = data.errors[0];
+        if (first.msg) msgCandidates.push(first.msg);
+        else msgCandidates.push(JSON.stringify(first));
+      }
+      if (data.reason) msgCandidates.push(data.reason);
+      if (data.title) msgCandidates.push(data.title);
+      if (typeof data === "string") msgCandidates.push(data);
+
+      const msg = msgCandidates.find((m) => !!m) || null;
+
+      if (status === 401) {
+        if (msg) {
+          const low = msg.toLowerCase();
+          if (low.includes("password")) return "Wrong password.";
+          if (low.includes("credential") || low.includes("invalid")) return "Invalid email or password.";
+          return msg;
+        }
+        return "Invalid email or password.";
+      }
+
+      if (status === 400) return msg || "Bad request. Please check your input.";
+      if (status === 403) return msg || "Access denied.";
+      if (status === 404) return msg || "Resource not found.";
+      if (status === 409) return msg || "Conflict: resource already exists.";
+
+      if (msg) return msg;
+      return `Request failed with status ${status}.`;
+    }
+
+    if (err.message) {
+      if (err.message.toLowerCase().includes("network"))
+        return "Network error. Please check your connection or server.";
+      return err.message;
+    }
+
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "Something went wrong. Please try again.";
+    }
+  };
+
+  const friendlyError = getFriendlyError(error);
 
   return (
     <>
@@ -201,11 +266,11 @@ export default function AuthPage() {
             </div>
 
             {/* Error from server */}
-            {/* {friendlyError && (
-            <p className="text-red-500 text-sm mt-2 text-center font-medium">
-              {friendlyError}
-            </p>
-            )} */}
+            {friendlyError && (
+              <p role="alert" className="text-red-500 text-sm mt-2 text-center font-medium">
+                {friendlyError}
+              </p>
+            )}
 
             {/* Submit Button with Spinner */}
             <button
