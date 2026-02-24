@@ -11,6 +11,7 @@ const applicationRouter = require('./routes/applicationRouter');
 const contactRouter = require("./routes/contactRouter");
 const adminRoutes = require("./routes/adminRoutes");
 const ngoRouter = require("./routes/ngoRoutes");
+const aiRouter = require("./routes/aiRoute");
 
 
 const cors = require("cors");
@@ -30,6 +31,7 @@ app.use('/application', applicationRouter);
 app.use('/api', contactRouter); 
 app.use('/admin', adminRoutes);
 app.use('/ngo', ngoRouter);
+app.use('/ai', aiRouter);
 
 
 
