@@ -1,13 +1,17 @@
 
 const validator = require("validator");
+const { DISABILITY_TYPES, DEVICE_TYPES, GENDER_TYPES } = require('../constants/enums');
 
 const validateBeneficiary = (data) => {
-  
+  if (Object.prototype.hasOwnProperty.call(data, "age")) {
+    throw new Error("The age field is not supported; use dateOfBirth");
+  }
+
   const mandatoryFields = [
     "fullName",
     "email",
     "phone",
-    "age",
+    "dateOfBirth",
     "gender",
     "monthlyIncome",
     "disabilityType",
@@ -36,10 +40,38 @@ const validateBeneficiary = (data) => {
     throw new Error("Invalid Phone Number");
   }
 
+  if (!GENDER_TYPES.includes(data.gender)) throw new Error(`Invalid gender. Allowed values: ${GENDER_TYPES.join(', ')}`);
+  if (!DISABILITY_TYPES.includes(data.disabilityType)) throw new Error(`Invalid disability type. Allowed values: ${DISABILITY_TYPES.join(', ')}`);
+  if (!DEVICE_TYPES.includes(data.requiredDevice)) throw new Error(`Invalid required device. Allowed values: ${DEVICE_TYPES.join(', ')}`);
 
 
-  if (!validator.isInt(data.age.toString(), { min: 1 })) {
-    throw new Error("Invalid Age");
+
+  if (!data.dateOfBirth) {
+    throw new Error("Date of birth is required");
+  }
+
+  const dateOfBirth = new Date(data.dateOfBirth);
+  if (Number.isNaN(dateOfBirth.getTime())) {
+    throw new Error("Date of birth must be a valid date");
+  }
+
+  const now = new Date();
+  if (dateOfBirth > now) {
+    throw new Error("Date of birth cannot be in the future");
+  }
+
+  let age = now.getFullYear() - dateOfBirth.getFullYear();
+  const birthdayHasPassed =
+    now.getMonth() > dateOfBirth.getMonth() ||
+    (now.getMonth() === dateOfBirth.getMonth() &&
+      now.getDate() >= dateOfBirth.getDate());
+
+  if (!birthdayHasPassed) {
+    age -= 1;
+  }
+
+  if (age < 1 || age > 130) {
+    throw new Error("Age must be between 1 and 130 years");
   }
 
   if (

@@ -4,7 +4,8 @@ const Beneficiary = require("../models/beneficiary");
 // Public route for tracking application status
 const getApplicationStatus = async (req, res) => {
   try {
-    const { id: applicationId, phone: phoneNumber } = req.query;
+    const applicationId = String(req.query.id || '').trim();
+    const phoneNumber = String(req.query.phone || '').trim();
 
     if (!applicationId || !phoneNumber) {
       return res.status(400).json({ 
@@ -12,42 +13,54 @@ const getApplicationStatus = async (req, res) => {
       });
     }
 
-    // First try to find in TrackStatus collection
-    let app = await TrackStatus.findOne({ applicationId, phoneNumber });
+    const beneficiary = await Beneficiary.findOne({ applicationId, phone: phoneNumber })
+      .populate('assignedNGO', 'ngoName phone address district state');
 
-    // If not found in TrackStatus, check Beneficiary collection
-    if (!app) {
-      const beneficiary = await Beneficiary.findOne({ 
-        applicationId, 
-        phone: phoneNumber 
-      }).select('fullName requiredDevice applicationStatus createdAt disabilityCertificate.verificationStatus');
+    if (!beneficiary) return res.status(404).json({ error: "Application not found with the provided details" });
 
-      if (!beneficiary) {
-        return res.status(404).json({ 
-          error: "Application not found with the provided details" 
-        });
-      }
-
-      // Create track status record for future lookups
-      app = await TrackStatus.create({
-        applicationId: beneficiary.applicationId,
-        name: beneficiary.fullName,
-        phoneNumber: phoneNumber,
-        status: beneficiary.applicationStatus,
-        device: beneficiary.requiredDevice,
-        appliedDate: beneficiary.createdAt,
-        updatedDate: beneficiary.updatedAt || beneficiary.createdAt
-      });
-    }
+    const distributionStatus = beneficiary.distribution?.status;
+    const canonicalDistributionStatus = distributionStatus === 'accepted' ? 'processing_at_ngo' : distributionStatus;
+    const status = canonicalDistributionStatus && canonicalDistributionStatus !== 'pending'
+      ? canonicalDistributionStatus
+      : beneficiary.sentToNGO
+        ? 'processing_at_ngo'
+        : beneficiary.assignedNGO
+          ? 'ngo_assigned'
+          : beneficiary.applicationStatus === 'pending'
+            ? 'submitted'
+            : beneficiary.applicationStatus;
+    const legacyHistory = await TrackStatus.findOne({ applicationId: beneficiary.applicationId }).select('history');
+    const assignedNGO = beneficiary.assignedNGO ? {
+      id: beneficiary.assignedNGO._id,
+      name: beneficiary.assignedNGO.ngoName,
+      phone: beneficiary.assignedNGO.phone,
+      address: beneficiary.assignedNGO.address,
+      district: beneficiary.assignedNGO.district,
+      state: beneficiary.assignedNGO.state
+    } : null;
 
     res.json({
-      applicationId: app.applicationId,
-      name: app.name,
-      status: app.status,
-      device: app.device,
-      appliedDate: app.appliedDate,
-      updatedDate: app.updatedDate,
-      center: app.center || ""
+      applicationId: beneficiary.applicationId,
+      name: beneficiary.fullName,
+      phone: beneficiary.phone,
+      status,
+      device: beneficiary.requiredDevice,
+      assignedNGO,
+      implementingCenter: assignedNGO?.name || '',
+      center: assignedNGO?.name || '',
+      appliedDate: beneficiary.createdAt,
+      updatedDate: beneficiary.updatedAt || beneficiary.createdAt,
+      history: legacyHistory?.history || [],
+      distribution: beneficiary.distribution ? {
+        method: beneficiary.distribution.method,
+        status: beneficiary.distribution.status,
+        expectedDeliveryDate: beneficiary.distribution.expectedDeliveryDate,
+        deliveredAt: beneficiary.distribution.deliveredAt,
+        beneficiaryConfirmed: beneficiary.distribution.beneficiaryConfirmed,
+        beneficiaryConfirmedAt: beneficiary.distribution.beneficiaryConfirmedAt,
+        proofSubmittedAt: beneficiary.distribution.proofSubmittedAt,
+        verificationStatus: beneficiary.adminVerification?.status || 'pending'
+      } : null
     });
 
   } catch (err) {

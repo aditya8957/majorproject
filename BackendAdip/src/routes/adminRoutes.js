@@ -4,6 +4,20 @@ const Beneficiary = require('../models/beneficiary');
 const TrackStatus = require('../models/trackStatus');
 const userMiddleware = require('../middleware/userMiddleware');
 const adminMiddleware = require('../middleware/adminMiddleware');
+const NGO = require('../models/ngoSchema');
+const updateTrackStatus = require('../utils/updateTrackStatus');
+const { APPLICATION_STATUS, DEVICE_LABELS, normalizeApplicationStatus, STATUS_TRANSITIONS } = require('../constants/enums');
+
+const workflowStatus = (application) => {
+  if (application.distribution?.status && application.distribution.status !== 'pending') return application.distribution.status === 'accepted' ? 'processing_at_ngo' : application.distribution.status;
+  if (application.sentToNGO) return 'processing_at_ngo';
+  if (application.assignedNGO) return 'ngo_assigned';
+  if (application.applicationStatus === 'pending') return 'submitted';
+  return application.applicationStatus;
+};
+const addNotification = (application, recipientRole, message, type = 'application_update') => {
+  application.notifications.push({ recipientRole, message, type, createdAt: new Date() });
+};
 
 // Apply admin middleware
 router.use(adminMiddleware);
@@ -11,8 +25,10 @@ router.use(adminMiddleware);
 // GET /admin/applications - Get all applications
 router.get('/applications', async (req, res) => {
   try {
-    const applications = await Beneficiary.find()
+    const applications = await Beneficiary.find().populate('assignedNGO', 'ngoName address phone')
       .sort({ createdAt: -1 });
+    const trackStatuses = await TrackStatus.find({ applicationId: { $in: applications.map(application => application.applicationId) } }).select('applicationId history');
+    const historyById = new Map(trackStatuses.map(trackStatus => [trackStatus.applicationId, trackStatus.history || []]));
     
     const transformedApps = applications.map(app => ({
       id: app.applicationId,
@@ -27,7 +43,11 @@ router.get('/applications', async (req, res) => {
       deviceRequested: app.requiredDevice,
       deviceType: getDeviceType(app.requiredDevice),
       estimatedCost: getEstimatedCost(app.requiredDevice),
-      status: mapStatus(app.applicationStatus),
+      status: workflowStatus(app),
+      ngo: app.assignedNGO,
+      ngoStatus: app.ngoStatus,
+      distribution: app.distribution,
+      adminVerification: app.adminVerification,
       documents: [
         {
           id: app._id.toString(),
@@ -37,13 +57,7 @@ router.get('/applications', async (req, res) => {
           url: app.disabilityCertificate?.fileUrl
         }
       ],
-      trackingHistory: [
-        {
-          status: mapStatus(app.applicationStatus),
-          date: app.createdAt,
-          comment: 'Application submitted'
-        }
-      ]
+      trackingHistory: historyById.get(app.applicationId) || []
     }));
 
     res.json(transformedApps);
@@ -55,9 +69,7 @@ router.get('/applications', async (req, res) => {
 // GET /admin/applications/:id - Get single application
 router.get('/applications/:id', async (req, res) => {
   try {
-    const application = await Beneficiary.findOne({ 
-      applicationId: req.params.id 
-    });
+    const application = await Beneficiary.findOne({ applicationId: req.params.id }).populate('assignedNGO', 'ngoName address phone');
 
     if (!application) {
       return res.status(404).json({ message: 'Application not found' });
@@ -82,12 +94,18 @@ router.get('/applications/:id', async (req, res) => {
       address: application.address,
       state: application.state,
       pinCode: application.pinCode,
-      age: application.age,
+      dateOfBirth: application.dateOfBirth,
       gender: application.gender,
       deviceRequested: application.requiredDevice,
       deviceType: getDeviceType(application.requiredDevice),
       estimatedCost: getEstimatedCost(application.requiredDevice),
-      status: mapStatus(application.applicationStatus),
+      status: workflowStatus(application),
+      ngo: application.assignedNGO,
+      ngoStatus: application.ngoStatus,
+      sentToNGO: application.sentToNGO,
+      distribution: application.distribution,
+      distributionProof: application.distributionProof,
+      adminVerification: application.adminVerification,
       documents: [
         {
           id: application._id.toString(),
@@ -102,13 +120,7 @@ router.get('/applications/:id', async (req, res) => {
           verifiedAt: application.disabilityCertificate?.verifiedAt
         }
       ],
-      trackingHistory: trackStatus ? [
-        {
-          status: mapStatus(trackStatus.status),
-          date: trackStatus.updatedDate,
-          comment: `Status updated to ${trackStatus.status}`
-        }
-      ] : []
+      trackingHistory: trackStatus?.history || []
     };
 
     res.json(transformedApp);
@@ -133,9 +145,21 @@ router.put('/applications/:id/status', async (req, res) => {
 
     // Map frontend status to your status
     const dbStatus = mapToDBStatus(status);
+    const currentStatus = workflowStatus(application);
+    if (dbStatus !== currentStatus && !(STATUS_TRANSITIONS[currentStatus] || []).includes(dbStatus)) {
+      return res.status(409).json({ message: `Invalid status transition from ${currentStatus} to ${dbStatus}` });
+    }
     
     // Update beneficiary status
     application.applicationStatus = dbStatus;
+    if (normalizeApplicationStatus(status) === APPLICATION_STATUS.APPROVED) {
+      addNotification(application, 'beneficiary', 'Your application has been approved.', 'application_approved');
+    }
+    if (normalizeApplicationStatus(status) === APPLICATION_STATUS.PROCESSING_AT_NGO) {
+      if (!application.assignedNGO) return res.status(409).json({ message: 'Assign an approved NGO before forwarding' });
+      application.sentToNGO = true;
+      application.ngoStatus = 'pending';
+    }
     await application.save();
 
     // Update or create track status (for public tracking)
@@ -152,6 +176,9 @@ router.put('/applications/:id/status', async (req, res) => {
         new: true 
       }
     );
+    if (normalizeApplicationStatus(status) === APPLICATION_STATUS.PROCESSING_AT_NGO) {
+      await updateTrackStatus(application.applicationId, { status: APPLICATION_STATUS.PROCESSING_AT_NGO, message: 'Application forwarded to NGO' });
+    }
 
     // console.log(` Status updated for ${application.applicationId}: ${dbStatus}`);
 
@@ -188,6 +215,8 @@ router.put('/applications/:id/verify-document', async (req, res) => {
       application.disabilityCertificate.rejectionReason = rejectionReason;
       // Application status bhi reject karo
       application.applicationStatus = 'rejected';
+    } else if (status === 'verified') {
+      application.applicationStatus = 'under_review';
     }
 
     await application.save();
@@ -197,7 +226,7 @@ router.put('/applications/:id/verify-document', async (req, res) => {
       { applicationId: application.applicationId },
       { 
         $set: {
-          status: status === 'rejected' ? 'rejected' : 'pending',
+          status: status === 'rejected' ? 'rejected' : 'under_review',
           updatedDate: new Date()
         }
       },
@@ -235,8 +264,21 @@ router.post('/applications/:id/assign-ngo', async (req, res) => {
       return res.status(404).json({ message: 'Application not found' });
     }
 
-    // Update status to processing/assigned
-    application.applicationStatus = 'processing';
+    if (!ngoId) return res.status(422).json({ message: 'Approved NGO is required' });
+    const ngo = await NGO.findOne({ _id: ngoId, status: { $regex: /^approved$/i } });
+    if (!ngo) return res.status(404).json({ message: 'Approved NGO not found' });
+    if (workflowStatus(application) !== APPLICATION_STATUS.APPROVED) return res.status(409).json({ message: 'Only approved applications can be assigned to an NGO' });
+    if (application.assignedNGO && application.assignedNGO.toString() !== ngo._id.toString() && application.sentToNGO) {
+      return res.status(409).json({ message: 'Application is already assigned to an active NGO' });
+    }
+
+    application.assignedNGO = ngo._id;
+    application.ngoStatus = 'pending';
+    application.sentToNGO = false;
+    application.ngoRejectionReason = null;
+    application.distribution = { status: 'pending' };
+    addNotification(application, 'beneficiary', `Your application has been assigned to ${ngo.ngoName}.`, 'ngo_assigned');
+    application.applicationStatus = APPLICATION_STATUS.NGO_ASSIGNED;
     await application.save();
 
     //  Update track status with center info
@@ -246,7 +288,7 @@ router.post('/applications/:id/assign-ngo', async (req, res) => {
         $set: {
           status: 'processing',
           updatedDate: new Date(),
-          center: ngoId 
+          center: ngo._id.toString()
         }
       },
       { upsert: true }
@@ -254,6 +296,7 @@ router.post('/applications/:id/assign-ngo', async (req, res) => {
 
     // console.log(` NGO assigned to ${application.applicationId}`);
 
+    await updateTrackStatus(application.applicationId, { status: APPLICATION_STATUS.NGO_ASSIGNED, center: ngo._id.toString(), message: 'NGO assigned' });
     res.json({ 
       success: true,
       message: 'NGO assigned successfully',
@@ -287,39 +330,48 @@ router.get('/applications/:id/document', async (req, res) => {
   }
 });
 
+router.get('/applications/:id/distribution-proof', async (req, res) => {
+  try {
+    const application = await Beneficiary.findOne({ applicationId: req.params.id }).populate('assignedNGO', 'ngoName address phone').select('applicationId fullName requiredDevice assignedNGO distribution distributionProof distributionDate distributionRemarks adminVerification ngoStatus');
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+    if (!application.distributionProof?.fileUrl) return res.status(404).json({ message: 'Distribution proof not found' });
+    res.json({ success: true, data: application });
+  } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+router.put('/applications/:id/verify-distribution', async (req, res) => {
+  try {
+    const { status, comment } = req.body;
+    if (!['verified', 'rejected'].includes(status) || (status === 'rejected' && !String(comment || '').trim())) return res.status(422).json({ message: status === 'rejected' ? 'A rejection reason is required' : 'Valid verification status is required' });
+    const application = await Beneficiary.findOne({ applicationId: req.params.id });
+    if (!application) return res.status(404).json({ message: 'Application not found' });
+    if (application.ngoStatus !== 'proof_submitted' || application.distribution?.status !== 'proof_submitted') return res.status(409).json({ message: 'Only submitted proof can be verified' });
+    application.adminVerification = { status, comment: String(comment || '').trim() || null, verifiedBy: req.user._id, verifiedAt: new Date() };
+    application.ngoStatus = status === 'verified' ? 'completed' : 'proof_submitted';
+    application.applicationStatus = status === 'verified' ? APPLICATION_STATUS.COMPLETED : APPLICATION_STATUS.PROOF_REJECTED;
+    application.distribution.status = status === 'verified' ? 'completed' : 'proof_rejected';
+    application.distribution.adminVerified = status === 'verified';
+    application.distribution.adminVerifiedAt = status === 'verified' ? new Date() : null;
+    application.distribution.adminRejectionReason = status === 'rejected' ? String(comment).trim() : null;
+    addNotification(application, 'beneficiary', status === 'verified' ? 'Your aid distribution has been verified successfully. Your application is now completed.' : 'The submitted distribution proof requires correction.', status === 'verified' ? 'completed' : 'proof_rejected');
+    addNotification(application, 'ngo', status === 'verified' ? 'Admin has verified the submitted distribution proof.' : 'Distribution proof was rejected by Admin. Please submit updated proof.', status === 'verified' ? 'completed' : 'proof_rejected');
+    await application.save();
+    await updateTrackStatus(application.applicationId, { status: status === 'verified' ? APPLICATION_STATUS.COMPLETED : APPLICATION_STATUS.PROOF_REJECTED, message: status === 'verified' ? 'Distribution proof verified' : 'Distribution proof rejected' });
+    res.json({ success: true, data: application });
+  } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 // GET /admin/ngos - Get all NGOs
 router.get('/ngos', async (req, res) => {
   try {
-    const ngos = [
-      {
-        id: "ngo-1",
-        name: "Helping Hands Foundation",
-        location: "New Delhi",
-        deviceTypes: ["wheelchair", "hearing"],
-        workload: 12,
-        capacity: 50,
-        contact: "+91 98765 43210",
-      },
-      {
-        id: "ngo-2",
-        name: "Vision for All",
-        location: "Mumbai",
-        deviceTypes: ["braille"],
-        workload: 8,
-        capacity: 30,
-        contact: "+91 98765 43211",
-      },
-      {
-        id: "ngo-3",
-        name: "Mobility Plus",
-        location: "Bangalore",
-        deviceTypes: ["crutches", "prosthetic"],
-        workload: 25,
-        capacity: 40,
-        contact: "+91 98765 43212",
-      },
-    ];
-    
+    const registrations = await NGO.find({ status: { $regex: /^approved$/i } }).sort({ approvedAt: -1 });
+    const ngos = registrations.map(ngo => ({
+      id: ngo._id.toString(), name: ngo.ngoName,
+      location: `${ngo.state}, ${ngo.district}`, deviceTypes: [], workload: 0,
+      capacity: null, contact: ngo.phone, address: ngo.address,
+      registrationNumber: ngo.registrationNumber, status: ngo.status,
+      approvedAt: ngo.approvedAt, documents: ngo.documents
+    }));
     res.json(ngos);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -329,20 +381,31 @@ router.get('/ngos', async (req, res) => {
 // GET /admin/dashboard/stats - Dashboard statistics
 router.get('/dashboard/stats', async (req, res) => {
   try {
-    const total = await Beneficiary.countDocuments();
-    const pending = await Beneficiary.countDocuments({ applicationStatus: 'pending' });
-    const approved = await Beneficiary.countDocuments({ applicationStatus: 'approved' });
-    const rejected = await Beneficiary.countDocuments({ applicationStatus: 'rejected' });
-    const processing = await Beneficiary.countDocuments({ applicationStatus: 'processing' });
+    const applications = await Beneficiary.find().select('applicationStatus assignedNGO sentToNGO distribution ngoStatus');
+    const statuses = applications.map(workflowStatus);
+    const total = applications.length;
+    const pendingVerification = statuses.filter(status => ['submitted', 'under_review'].includes(status)).length;
+    const approved = statuses.filter(status => status === 'approved').length;
+    const ngoAssigned = statuses.filter(status => status === 'ngo_assigned').length;
+    const ngoProcessing = statuses.filter(status => ['processing_at_ngo', 'aid_preparation', 'aid_ready'].includes(status)).length;
+    const outForDelivery = statuses.filter(status => ['out_for_delivery', 'delivered', 'beneficiary_confirmed'].includes(status)).length;
+    const proofSubmitted = statuses.filter(status => ['proof_submitted', 'proof_rejected'].includes(status)).length;
+    const completed = statuses.filter(status => status === 'completed').length;
+    const rejected = statuses.filter(status => status === 'rejected').length;
 
     // Monthly trends (last 6 months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+   
+  
+    // Monthly trends: January to current month (dynamic)
+    const now = new Date();
+
+    const startDate = new Date(now.getFullYear(), 0, 1);
+    startDate.setHours(0, 0, 0, 0);
 
     const monthlyData = await Beneficiary.aggregate([
       {
         $match: {
-          createdAt: { $gte: sixMonthsAgo }
+          createdAt: { $gte: startDate, $lte: now }
         }
       },
       {
@@ -351,32 +414,53 @@ router.get('/dashboard/stats', async (req, res) => {
           count: { $sum: 1 }
         }
       },
-      { $sort: { _id: 1 } }
+      {
+        $sort: { _id: 1 }
+      }
     ]);
 
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    const chartData = months.map((name, index) => {
-      const monthData = monthlyData.find(d => d._id === index + 1);
-      return {
-        name,
-        apps: monthData ? monthData.count : 0
-      };
+    // Generate month labels dynamically
+    const monthlyCounts = {};
+
+    monthlyData.forEach(item => {
+      monthlyCounts[item._id] = item.count;
     });
+
+    const chartData = [];
+    const currentMonth = now.getMonth() + 1;
+
+    for (let month = 0; month < currentMonth; month++) {
+      const date = new Date(now.getFullYear(), month, 1);
+
+      chartData.push({
+        name: date.toLocaleString("en-US", { month: "short" }),
+        apps: monthlyCounts[month + 1] || 0
+      });
+    }
+
+
 
     res.json({
       stats: {
         total,
-        pending,
+        pending: pendingVerification,
+        pendingVerification,
         approved,
+        ngoAssigned,
+        ngoProcessing,
+        outForDelivery,
+        proofSubmitted,
+        completed,
         rejected,
-        processing
+        processing: ngoProcessing + ngoAssigned
       },
       chartData,
       pieData: [
         { name: 'Approved', value: approved, color: '#10b981' },
         { name: 'Rejected', value: rejected, color: '#ef4444' },
-        { name: 'Pending', value: pending, color: '#f59e0b' },
-        { name: 'Processing at NGO', value: processing, color: '#3b82f6' }
+        { name: 'Pending Verification', value: pendingVerification, color: '#f59e0b' },
+        { name: 'Proof Verification', value: proofSubmitted, color: '#f97316' },
+        { name: 'Completed', value: completed, color: '#22c55e' }
       ]
     });
   } catch (error) {
@@ -433,14 +517,7 @@ router.post('/sync-track-status', async (req, res) => {
 
 // Helper functions
 function getDeviceType(device) {
-  const types = {
-    'wheelchair': 'Locomotor Aid',
-    'hearing': 'Hearing Aid',
-    'crutches': 'Mobility Aid',
-    'prosthetic': 'Prosthetic Aid',
-    'braille': 'Visual Aid'
-  };
-  return types[device] || 'Other';
+  return DEVICE_LABELS[device] || device || 'Other';
 }
 
 function getEstimatedCost(device) {
@@ -465,17 +542,7 @@ function mapStatus(dbStatus) {
 }
 
 function mapToDBStatus(frontendStatus) {
-  const statusMap = {
-    'PENDING_VERIFICATION': 'pending',
-    'UNDER_REVIEW': 'pending',
-    'APPROVED': 'approved',
-    'NGO_ASSIGNED': 'processing',
-    'PROCESSING_AT_NGO': 'processing',
-    'READY_FOR_DISTRIBUTION': 'processing',
-    'DELIVERED': 'approved',
-    'REJECTED': 'rejected'
-  };
-  return statusMap[frontendStatus] || 'pending';
+  return normalizeApplicationStatus(frontendStatus) || APPLICATION_STATUS.SUBMITTED;
 }
 
 module.exports = router;

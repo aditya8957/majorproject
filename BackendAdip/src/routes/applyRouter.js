@@ -2,6 +2,7 @@ const express = require("express");
 const beneficiaryRouter = express.Router();
 const { registerBeneficiary } = require("../controllers/beneficiaryRegistration");
 const multer = require("multer");
+const userMiddleware = require('../middleware/userMiddleware');
 
 const storage = multer.memoryStorage();
 
@@ -19,6 +20,7 @@ const upload = multer({
 
 beneficiaryRouter.post(
   "/apply",
+  userMiddleware,
   upload.single("disabilityCertificate"),
   registerBeneficiary
 );

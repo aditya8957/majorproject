@@ -13,10 +13,11 @@ const updateTrackStatus = async (applicationId, updateData) => {
       { applicationId },
       {
         $set: {
-          status: updateData.status,
-          center: updateData.center || '',
+          ...(updateData.status ? { status: updateData.status } : {}),
+          ...(updateData.center !== undefined ? { center: updateData.center } : {}),
           updatedDate: new Date()
-        }
+        },
+        ...(updateData.message ? { $push: { history: { status: updateData.status, message: updateData.message, date: new Date() } } } : {})
       },
       { 
         new: true,

@@ -2,6 +2,7 @@ const Beneficiary = require("../models/beneficiary");
 const TrackStatus = require("../models/trackStatus");
 const validateBeneficiary = require("../utils/beneficiaryValidator");
 const cloudinary = require("../config/cloudinary");
+const { APPLICATION_STATUS } = require('../constants/enums');
 
 const generateApplicationId = async () => {
   const year = new Date().getFullYear();
@@ -51,6 +52,7 @@ const registerBeneficiary = async (req, res) => {
     }
 
     req.body.applicationId = await generateApplicationId();
+    req.body.userId = req.result?._id || req.body.userId;
 
     const beneficiary = await Beneficiary.create(req.body);
 
@@ -58,10 +60,11 @@ const registerBeneficiary = async (req, res) => {
       applicationId: beneficiary.applicationId,
       name: beneficiary.fullName,
       phoneNumber: beneficiary.phone,
-      status: beneficiary.applicationStatus || "pending",
+      status: beneficiary.applicationStatus || APPLICATION_STATUS.SUBMITTED,
       device: beneficiary.requiredDevice,
       appliedDate: beneficiary.createdAt,
       updatedDate: beneficiary.createdAt
+      ,history: [{ status: APPLICATION_STATUS.SUBMITTED, message: 'Application submitted', date: beneficiary.createdAt }]
     });
 
     const reply = {

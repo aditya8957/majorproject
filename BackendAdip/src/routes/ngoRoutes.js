@@ -11,6 +11,7 @@ const userMiddleware = require("../middleware/userMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 const ngoMiddleware = require("../middleware/ngoMiddleware");
 const multer = require("multer");
+const processing = require('../controllers/ngoProcessing');
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -19,7 +20,7 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     // Allow PDF files only
-    if (file.mimetype === "application/pdf") {
+    if (["application/pdf", "image/jpeg", "image/png"].includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(new Error("Only PDF files are allowed"));
@@ -58,6 +59,18 @@ ngoRouter.put(
   adminMiddleware,
   approveNGORegistration
 );
+
+ngoRouter.get('/applications', ngoMiddleware, processing.getApplications);
+ngoRouter.get('/applications/:applicationId', ngoMiddleware, processing.getApplication);
+ngoRouter.get('/profile', ngoMiddleware, processing.getProfile);
+ngoRouter.put('/applications/:applicationId/accept', ngoMiddleware, processing.accept);
+ngoRouter.put('/applications/:applicationId/reject', ngoMiddleware, processing.reject);
+ngoRouter.put('/applications/:applicationId/fulfillment', ngoMiddleware, processing.fulfillment);
+ngoRouter.put('/applications/:applicationId/availability', ngoMiddleware, processing.availability);
+ngoRouter.put('/applications/:applicationId/distribution-method', ngoMiddleware, processing.setDistributionMethod);
+ngoRouter.put('/applications/:applicationId/deliver', ngoMiddleware, processing.markDelivered);
+ngoRouter.put('/applications/:applicationId/message', ngoMiddleware, processing.sendMessage);
+ngoRouter.put('/applications/:applicationId/distribute', ngoMiddleware, upload.single('proof'), processing.distribute);
 
 // Admin: Reject NGO registration
 ngoRouter.put(

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { DISABILITY_TYPES, DEVICE_TYPES, APPLICATION_STATUS, NGO_STATUS, DISTRIBUTION_STATUS, DISTRIBUTION_METHODS, GENDER_TYPES, VERIFICATION_STATUS } = require('../constants/enums');
 
 const beneficiarySchema = new mongoose.Schema({
   userId: {
@@ -16,14 +17,13 @@ const beneficiarySchema = new mongoose.Schema({
     unique: true,
     required: true
   },
-  age: {
-    type: Number,
-    required: true,
-    min: 1
+  dateOfBirth: {
+    type: Date,
+    required: true
   },
   gender: {
     type: String,
-    enum: ["male", "female", "other"],
+    enum: GENDER_TYPES,
     required: true
   },
   phone: {
@@ -42,13 +42,7 @@ const beneficiarySchema = new mongoose.Schema({
   },
   disabilityType: {
     type: String,
-    enum: [
-      "locomotor",
-      "visual",
-      "hearing",
-      "intellectual",
-      "multiple"
-    ],
+    enum: DISABILITY_TYPES,
     required: true
   },
   disabilityPercentage: {
@@ -64,10 +58,10 @@ const beneficiarySchema = new mongoose.Schema({
     uploadedAt: { type: Date, default: Date.now },
     verificationStatus: {  // ✅ Add this
       type: String,
-      enum: ['pending', 'verified', 'rejected'],
+      enum: VERIFICATION_STATUS,
       default: 'pending'
     },
-    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
     verifiedAt: { type: Date }, 
     rejectionReason: { type: String } 
   },
@@ -86,13 +80,81 @@ const beneficiarySchema = new mongoose.Schema({
   },
   requiredDevice: {
     type: String,
-    enum: ["wheelchair", "hearing", "crutches", "prosthetic", "braille"],
+    enum: DEVICE_TYPES,
     required: true
   },
   applicationStatus: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'processing'],
-    default: 'pending'
+    enum: Object.values(APPLICATION_STATUS),
+    default: APPLICATION_STATUS.SUBMITTED
+  },
+  assignedNGO: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ngoApplication',
+    default: null
+  },
+  ngoStatus: {
+    type: String,
+    enum: NGO_STATUS,
+    default: 'not_assigned'
+  },
+  sentToNGO: { type: Boolean, default: false },
+  ngoResponseAt: { type: Date, default: null },
+  ngoRejectionReason: { type: String, default: null },
+  expectedDistributionDate: { type: Date, default: null },
+  distributionDate: { type: Date, default: null },
+  distributionRemarks: { type: String, default: null },
+  distributionProof: {
+    fileName: String,
+    fileUrl: String,
+    publicId: String,
+    uploadedAt: Date
+  },
+  adminVerification: {
+  status: { type: String, enum: VERIFICATION_STATUS, default: 'pending' },
+    comment: { type: String, default: null },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user', default: null },
+    verifiedAt: { type: Date, default: null }
+  },
+  distribution: {
+    method: { type: String, enum: DISTRIBUTION_METHODS, default: null },
+    status: {
+      type: String,
+      enum: DISTRIBUTION_STATUS,
+      default: 'pending'
+    },
+    expectedDeliveryDate: { type: Date, default: null },
+    deliveredAt: { type: Date, default: null },
+    pickupDate: { type: Date, default: null },
+    campName: { type: String, default: null },
+    campLocation: { type: String, default: null },
+    instructions: { type: String, default: null },
+    beneficiaryConfirmed: { type: Boolean, default: false },
+    beneficiaryConfirmedAt: { type: Date, default: null },
+    proofUrl: { type: String, default: null },
+    proofSubmittedAt: { type: Date, default: null },
+    adminVerified: { type: Boolean, default: false },
+    adminVerifiedAt: { type: Date, default: null },
+    adminRejectionReason: { type: String, default: null },
+    ngoRemarks: { type: String, default: null }
+  },
+  notifications: [{
+    recipientRole: { type: String, enum: ['beneficiary', 'ngo', 'admin'], required: true },
+    message: { type: String, required: true },
+    type: { type: String, default: 'application_update' },
+    read: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  communications: [{
+    senderRole: { type: String, enum: ['beneficiary', 'ngo', 'admin'], required: true },
+    message: { type: String, required: true, maxlength: 500 },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  deliveryProblem: {
+    reported: { type: Boolean, default: false },
+    reason: { type: String, default: null },
+    reportedAt: { type: Date, default: null },
+    resolvedAt: { type: Date, default: null }
   },
   declarationAccepted: {
     type: Boolean,
@@ -102,7 +164,7 @@ const beneficiarySchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { timestamps: true });
 
 
 

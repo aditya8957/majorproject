@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { APPLICATION_STATUS } = require('../constants/enums');
 
 const trackStatusSchema = new mongoose.Schema({
   applicationId: { 
@@ -16,7 +17,7 @@ const trackStatusSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'processing'],
+    enum: Object.values(APPLICATION_STATUS),
     default: 'pending'
   },
   device: {
@@ -35,6 +36,11 @@ const trackStatusSchema = new mongoose.Schema({
     type: Date, 
     default: Date.now 
   }
+  ,history: [{
+    status: { type: String, required: true },
+    message: { type: String, required: true },
+    date: { type: Date, default: Date.now }
+  }]
 });
 
 // Update the updatedDate on save

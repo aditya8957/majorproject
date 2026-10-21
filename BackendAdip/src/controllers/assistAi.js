@@ -48,9 +48,9 @@ Please respond naturally and conversationally.`;
         
        
         const stream = await ai.models.generateContentStream({
-            model: "gemini-3-flash-preview",
+           model: "gemini-2.5-flash-lite",
             contents: prompt,
-            generationConfig: {
+            config: {
                 temperature: 0.7,
                 maxOutputTokens: 1024,
             }
@@ -69,7 +69,14 @@ Please respond naturally and conversationally.`;
         res.end();
 
     } catch (err) {
-        console.error("Gemini API Error:", err.message);
+        console.error("Gemini streaming request failed:", {
+            name: err.name,
+            message: err.message,
+            status: err.status,
+            code: err.code,
+            details: err.details,
+            stack: err.stack,
+        });
         
        
         res.write(`data: ${JSON.stringify({ 

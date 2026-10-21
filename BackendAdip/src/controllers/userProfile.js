@@ -1,6 +1,12 @@
 
 const Beneficiary = require('../models/beneficiary');
 const User = require('../models/user');
+const { normalizeApplicationStatus } = require('../constants/enums');
+
+const findOwnedApplication = (req) => Beneficiary.findOne({
+    applicationId: req.params.applicationId,
+    userId: req.result._id
+});
 
 
 const getUserProfile = async (req, res) => {
@@ -85,7 +91,7 @@ const getAllApplications = async (req, res) => {
         let filter = { userId };
 
         if (status) {
-            filter.applicationStatus = status;
+            filter.applicationStatus = normalizeApplicationStatus(status);
         }
 
         if (disabilityType) {
@@ -108,7 +114,7 @@ const getAllApplications = async (req, res) => {
         // Get statistics
         const stats = {
             total: applications.length,
-            pending: applications.filter(app => app.applicationStatus === 'pending').length,
+            pending: applications.filter(app => ['submitted', 'under_review'].includes(normalizeApplicationStatus(app.applicationStatus))).length,
             approved: applications.filter(app => app.applicationStatus === 'approved').length,
             rejected: applications.filter(app => app.applicationStatus === 'rejected').length,
             processing: applications.filter(app => app.applicationStatus === 'processing').length
@@ -250,7 +256,7 @@ const downloadApplications = async (req, res) => {
 
         if (format === 'csv') {
             // Convert to CSV
-            const fields = ['applicationId', 'fullName', 'age', 'gender', 'phone', 
+            const fields = ['applicationId', 'fullName', 'dateOfBirth', 'gender', 'phone', 
                           'disabilityType', 'disabilityPercentage', 'requiredDevice', 
                           'applicationStatus', 'createdAt'];
             
@@ -288,11 +294,71 @@ const downloadApplications = async (req, res) => {
     }
 };
 
+const getNotifications = async (req, res) => {
+    try {
+        const applications = await Beneficiary.find({ userId: req.result._id }).select('applicationId notifications');
+        const notifications = applications.flatMap(application => (application.notifications || [])
+            .filter(item => item.recipientRole === 'beneficiary')
+            .map(item => ({ ...item.toObject(), applicationId: application.applicationId })))
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        res.json({ success: true, notifications });
+    } catch (error) { res.status(500).json({ success: false, message: error.message }); }
+};
+
+const confirmReceipt = async (req, res) => {
+    try {
+        const application = await findOwnedApplication(req);
+        if (!application) return res.status(404).json({ message: 'Application not found' });
+        if (application.deliveryProblem?.reported) return res.status(409).json({ message: 'Resolve the delivery problem before confirming receipt' });
+        if (application.distribution?.beneficiaryConfirmed) return res.status(409).json({ message: 'Receipt already confirmed' });
+        if (application.distribution?.status !== 'delivered') return res.status(409).json({ message: 'Aid must be marked delivered first' });
+        application.distribution.beneficiaryConfirmed = true;
+        application.distribution.beneficiaryConfirmedAt = new Date();
+        application.distribution.status = 'beneficiary_confirmed';
+        application.ngoStatus = 'beneficiary_confirmed';
+        application.applicationStatus = 'beneficiary_confirmed';
+        application.notifications.push({ recipientRole: 'ngo', message: `Beneficiary confirmed receipt for ${application.applicationId}.`, type: 'receipt_confirmed' });
+        await application.save();
+        res.json({ success: true, application });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+const reportProblem = async (req, res) => {
+    const reason = String(req.body.reason || '').trim();
+    if (!reason) return res.status(422).json({ message: 'Problem description is required' });
+    try {
+        const application = await findOwnedApplication(req);
+        if (!application) return res.status(404).json({ message: 'Application not found' });
+        application.deliveryProblem = { reported: true, reason, reportedAt: new Date(), resolvedAt: null };
+        application.notifications.push({ recipientRole: 'ngo', message: `Delivery problem reported: ${reason}`, type: 'delivery_problem' });
+        application.notifications.push({ recipientRole: 'admin', message: `Delivery problem reported for ${application.applicationId}: ${reason}`, type: 'delivery_problem' });
+        await application.save();
+        res.json({ success: true, application });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+const sendBeneficiaryMessage = async (req, res) => {
+    const message = String(req.body.message || '').trim();
+    if (!message) return res.status(422).json({ message: 'Message is required' });
+    try {
+        const application = await findOwnedApplication(req);
+        if (!application) return res.status(404).json({ message: 'Application not found' });
+        application.communications.push({ senderRole: 'beneficiary', message });
+        application.notifications.push({ recipientRole: 'ngo', message, type: 'communication' });
+        await application.save();
+        res.json({ success: true, application });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
 module.exports = {
     getUserProfile,
     getApplicationDetails,
     getAllApplications,
     updateProfile,
     getApplicationStats,
-    downloadApplications
+    downloadApplications,
+    getNotifications,
+    confirmReceipt,
+    reportProblem,
+    sendBeneficiaryMessage
 };

@@ -23,8 +23,8 @@ const ngoMiddleware = async (req, res, next) => {
       throw new Error("User Doesn't Exist");
     }
 
-    if (user.role !== "ngo") {
-      throw new Error("NGO access required");
+    if (user.role !== "ngo" || !user.isNgoApproved) {
+      return res.status(403).json({ success: false, message: "NGO approval required" });
     }
 
     // Redis check for token blacklist

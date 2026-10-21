@@ -66,7 +66,7 @@ const registerNGO = async (req, res) => {
     // Check if user already has a pending registration
     const pendingRegistration = await NGO.findOne({
       userId,
-      status: "Pending"
+      status: "pending"
     });
 
     if (pendingRegistration) {
@@ -134,8 +134,10 @@ const registerNGO = async (req, res) => {
       address,
       phone,
       documents,
-      status: "Pending"
+      status: "pending"
     });
+
+    await User.findByIdAndUpdate(userId, { isNgoRequested: true, isNgoApproved: false });
 
     res.status(201).json({
       success: true,
@@ -165,7 +167,10 @@ const getNGORegistrationRequests = async (req, res) => {
     let query = {};
 
     if (status) {
-      query.status = status;
+      const normalizedStatus = status.toLowerCase();
+      query.status = ["pending", "approved", "rejected"].includes(normalizedStatus)
+        ? { $regex: new RegExp(`^${normalizedStatus}$`, "i") }
+        : status;
     }
 
     const requests = await NGO.find(query)
@@ -202,7 +207,7 @@ const approveNGORegistration = async (req, res) => {
       });
     }
 
-    if (ngoRegistration.status !== "Pending") {
+    if (ngoRegistration.status !== "pending") {
       return res.status(409).json({
         success: false,
         message: "Only pending requests can be approved"
@@ -210,7 +215,7 @@ const approveNGORegistration = async (req, res) => {
     }
 
     // Update NGO status
-    ngoRegistration.status = "Approved";
+    ngoRegistration.status = "approved";
     if (adminComment) {
       ngoRegistration.adminComment = adminComment;
     }
@@ -221,8 +226,10 @@ const approveNGORegistration = async (req, res) => {
 
     // Update user role to "ngo" if needed
     const user = await User.findById(ngoRegistration.userId);
-    if (user && user.role !== "ngo") {
+    if (user) {
       user.role = "ngo";
+      user.isNgoApproved = true;
+      user.isNgoRequested = true;
       await user.save();
     }
 
@@ -268,7 +275,7 @@ const rejectNGORegistration = async (req, res) => {
       });
     }
 
-    if (ngoRegistration.status !== "Pending") {
+    if (ngoRegistration.status !== "pending") {
       return res.status(409).json({
         success: false,
         message: "Only pending requests can be rejected"
@@ -276,12 +283,19 @@ const rejectNGORegistration = async (req, res) => {
     }
 
     // Update NGO status
-    ngoRegistration.status = "Rejected";
+    ngoRegistration.status = "rejected";
     ngoRegistration.adminComment = adminComment;
     ngoRegistration.rejectedBy = req.user._id;
     ngoRegistration.rejectedAt = new Date();
 
     await ngoRegistration.save();
+
+    const user = await User.findById(ngoRegistration.userId);
+    if (user) {
+      user.role = "user";
+      user.isNgoApproved = false;
+      await user.save();
+    }
 
     res.status(200).json({
       success: true,

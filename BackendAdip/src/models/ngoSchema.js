@@ -49,8 +49,8 @@ const ngoSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ["Pending", "Approved", "Rejected"],
-    default: "Pending"
+    enum: ["pending", "approved", "rejected"],
+    default: "pending"
   },
 
   adminComment: {
@@ -59,7 +59,7 @@ const ngoSchema = new mongoose.Schema({
 
   approvedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+    ref: "user"
   },
 
   approvedAt: {
@@ -68,7 +68,7 @@ const ngoSchema = new mongoose.Schema({
 
   rejectedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
+    ref: "user"
   },
 
   rejectedAt: {
