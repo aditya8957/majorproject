@@ -73,41 +73,56 @@ function AssistAi({ problem }) {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let accumulatedText = "";
+            let eventBuffer = "";
+
+            const processSseEvent = (event) => {
+                const dataLine = event.split(/\r?\n/).find(line => line.startsWith('data:'));
+                if (!dataLine) return false;
+
+                let data;
+                try {
+                    data = JSON.parse(dataLine.slice(5).trimStart());
+                } catch (error) {
+                    console.error("Invalid SSE JSON:", error);
+                    return false;
+                }
+
+                if (data.error) throw new Error(data.message || "AI service error");
+                if (data.done) return true;
+
+                if (data.text) {
+                    accumulatedText += data.text;
+                    setStreamingMessage(accumulatedText);
+
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        newMessages[newMessages.length - 1] = {
+                            role: 'assistant',
+                            parts: [{ text: accumulatedText }]
+                        };
+                        return newMessages;
+                    });
+                }
+
+                return false;
+            };
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 
-                const chunk = decoder.decode(value, { stream: true });
-                const lines = chunk.split('\n\n');
-                
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const jsonStr = line.slice(6);
-                        try {
-                            const data = JSON.parse(jsonStr);
-                            
-                            if (data.error) throw new Error(data.message);
-                            if (data.done) break;
-                            
-                            if (data.text) {
-                                accumulatedText += data.text;
-                                setStreamingMessage(accumulatedText);
-                                
-                                setMessages(prev => {
-                                    const newMessages = [...prev];
-                                    newMessages[newMessages.length - 1] = {
-                                        role: 'assistant',
-                                        parts: [{ text: accumulatedText }]
-                                    };
-                                    return newMessages;
-                                });
-                            }
-                        } catch (e) {
-                            console.error("Error parsing SSE:", e);
-                        }
-                    }
+                eventBuffer += decoder.decode(value, { stream: true });
+                const events = eventBuffer.split(/\r?\n\r?\n/);
+                eventBuffer = events.pop() || "";
+
+                for (const event of events) {
+                    if (processSseEvent(event)) break;
                 }
+            }
+
+            eventBuffer += decoder.decode();
+            if (eventBuffer.trim()) {
+                processSseEvent(eventBuffer);
             }
             
         } catch (error) {
@@ -178,7 +193,7 @@ function AssistAi({ problem }) {
                     <div>
                         <h2 className="text-white font-semibold flex items-center gap-2">
                             AssistAI
-                            <span className="bg-green-400 text-xs text-green-900 px-2 py-0.5 rounded-full font-normal">Online</span>
+                            {/* <span className="bg-green-400 text-xs text-green-900 px-2 py-0.5 rounded-full font-normal">Online</span> */}
                         </h2>
                         <p className="text-blue-100 text-xs">Your Disability Assistance Companion</p>
                     </div>
@@ -300,43 +315,40 @@ function AssistAi({ problem }) {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSubmit(onSubmit)} className="bg-white border-t border-gray-200 p-4">
-                <div className="flex items-center gap-2">
-                    <div className="flex-1 relative">
-                        <input
-                            placeholder="Ask me anything about disabilities or accessibility..."
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
-                            {...register("message", { required: true })}
-                            ref={(e) => {
-                                register("message").ref(e);
-                                inputRef.current = e;
-                            }}
-                            disabled={isSending}
-                        />
-                        {!isSending && messages.length > 1 && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                <MessageCircle className="w-4 h-4 text-gray-400" />
-                            </div>
-                        )}
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={isSending}
-                        className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                    >
-                        <Send size={18} />
-                        <span className="hidden sm:inline">Send</span>
-                    </button>
-                </div>
-                {errors.message && (
-                    <p className="text-red-500 text-xs mt-1">Please enter a message</p>
-                )}
-                
-                {/* Footer note */}
-                <p className="text-xs text-gray-400 mt-2 text-center">
-                    Divyang Sahayak provides information about disabilities and related services. For medical advice, please consult a professional.
-                </p>
-            </form>
+            <form onSubmit={handleSubmit(onSubmit)} className="bg-white border-t border-gray-200 p-3">
+    
+    <div className="relative max-w-3xl mx-auto">
+        
+        <input
+            placeholder="Ask me anything about disabilities or accessibility..."
+            className="w-full px-4 py-2 pr-20 bg-gray-100 border border-gray-300 rounded-full text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            {...register("message", { required: true })}
+            ref={(e) => {
+                register("message").ref(e);
+                inputRef.current = e;
+            }}
+            disabled={isSending}
+        />
+
+        {/* Send Button INSIDE */}
+        <button
+            type="submit"
+            disabled={isSending}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
+        >
+            <Send size={16} />
+        </button>
+
+    </div>
+
+    {errors.message && (
+        <p className="text-red-500 text-xs mt-1 text-center">Please enter a message</p>
+    )}
+
+    <p className="text-xs text-gray-400 mt-2 text-center">
+        Divyang Sahayak provides information about disabilities and related services. For medical advice, please consult a professional.
+    </p>
+</form>
         </div>
     );
 }

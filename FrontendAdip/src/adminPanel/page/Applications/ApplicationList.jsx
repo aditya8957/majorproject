@@ -1,19 +1,26 @@
-import React, { useState } from 'react';
-import { useSelector } from 'react-redux';
+import React, { useEffect, useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Filter, Search, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { StatusBadge } from '../../component/StatusBadge';
+import { fetchApplications } from '../../store';
+import { APPLICATION_STATUSES, getStatusLabel, normalizeApplicationStatus } from '../../../utils/applicationStatus';
 
 export const ApplicationListPage = () => {
   const applications = useSelector((state) => state.app.applications);
+  const dispatch = useDispatch();
   const [filter, setFilter] = useState('ALL');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    dispatch(fetchApplications());
+  }, [dispatch]);
 
   const filteredApps =
     filter === 'ALL'
       ? applications
-      : applications.filter((app) => app.status === filter);
+      : applications.filter((app) => normalizeApplicationStatus(app.status) === filter);
 
   return (
     <div className="space-y-6">
@@ -34,15 +41,9 @@ export const ApplicationListPage = () => {
               onChange={(e) => setFilter(e.target.value)}
             >
               <option value="ALL">All Statuses</option>
-              {applications.length > 0 &&
-                Object.values(applications[0]).includes(applications[0].status) &&
-                [...new Set(applications.map((app) => app.status))].map(
-                  (status) => (
-                    <option key={status} value={status}>
-                      {status.replace(/_/g, ' ')}
-                    </option>
-                  )
-                )}
+              {APPLICATION_STATUSES.map((status) => (
+                <option key={status} value={status}>{getStatusLabel(status)}</option>
+              ))}
             </select>
           </div>
         </div>

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccessibility } from '../context/AccessibilityContext';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useTransform, AnimatePresence, useMotionValueEvent, useReducedMotion } from 'framer-motion';
 import {
   CheckCircleIcon,
   ClipboardListIcon,
@@ -26,12 +26,128 @@ import {
   ArrowRightIcon,
   SparklesIcon,
   BookOpenIcon,
-  CalendarIcon
+  CalendarIcon,
+  MessageCircleIcon,
+  BotIcon,
+  SendIcon
 } from 'lucide-react';
+
+function Reveal({ children, delay = 0, className = '' }) {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.6, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export function Home() {
   const { language, hideImages } = useAccessibility();
   const { scrollY } = useScroll();
+  const reduce = useReducedMotion();
+  const [tab, setTab] = useState(0);
+  const [active, setActive] = useState(-1);
+  const [ci, setCi] = useState(0);
+  const [thinking, setThinking] = useState(true);
+  const procRef = useRef(null);
+  const { scrollYProgress: processProgress } = useScroll({
+    target: procRef,
+    offset: ['start 0.8', 'end 0.2']
+  });
+  const lineScale = processProgress;
+  const t = (english, hindi) => language === 'en' ? english : hindi;
+  const ring = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-blue-500';
+
+  const cats = [
+    {
+      label: t('Mobility', 'गतिशीलता'),
+      title: t('Move with greater independence', 'अधिक स्वतंत्रता से चलें'),
+      body: t('Explore mobility aids and assistive devices that can support everyday movement.', 'रोज़मर्रा की आवाजाही में मदद करने वाले गतिशीलता साधनों और सहायक उपकरणों को देखें।'),
+      items: [t('Wheelchairs', 'व्हीलचेयर'), t('Walking aids', 'चलने के सहायक साधन'), t('Prosthetics', 'कृत्रिम अंग')],
+      icon: UsersIcon,
+      color: '#2563EB',
+      bg: 'linear-gradient(135deg, #EFF6FF, #E0E7FF)'
+    },
+    {
+      label: t('Hearing', 'श्रवण'),
+      title: t('Stay connected to every conversation', 'हर बातचीत से जुड़े रहें'),
+      body: t('Find hearing support options and devices suited to different communication needs.', 'अलग-अलग संचार आवश्यकताओं के अनुरूप श्रवण सहायता और उपकरण खोजें।'),
+      items: [t('Hearing aids', 'श्रवण यंत्र'), t('Communication support', 'संचार सहायता'), t('Accessories', 'सहायक उपकरण')],
+      icon: HeartHandshakeIcon,
+      color: '#7C3AED',
+      bg: 'linear-gradient(135deg, #F5F3FF, #EDE9FE)'
+    },
+    {
+      label: t('Daily living', 'दैनिक जीवन'),
+      title: t('Make everyday tasks more accessible', 'रोज़मर्रा के कामों को अधिक सुलभ बनाएं'),
+      body: t('Discover practical aids that can help with daily routines, learning, and participation.', 'दैनिक दिनचर्या, सीखने और भागीदारी में मदद करने वाले उपयोगी साधन खोजें।'),
+      items: [t('Learning aids', 'सीखने के साधन'), t('Daily living aids', 'दैनिक जीवन के साधन'), t('Accessibility tools', 'सुलभता उपकरण')],
+      icon: ShieldIcon,
+      color: '#059669',
+      bg: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)'
+    }
+  ];
+  const cat = cats[tab];
+  const steps = [
+    { title: t('Check your eligibility', 'अपनी पात्रता जांचें'), body: t('Review the basic scheme requirements and available support.', 'योजना की बुनियादी शर्तों और उपलब्ध सहायता की जानकारी लें।') },
+    { title: t('Prepare your documents', 'अपने दस्तावेज़ तैयार करें'), body: t('Use the document guide to get ready before submitting an application.', 'आवेदन जमा करने से पहले दस्तावेज़ गाइड की मदद से तैयारी करें।') },
+    { title: t('Submit your application', 'अपना आवेदन जमा करें'), body: t('Complete the application with accurate details and supporting documents.', 'सही जानकारी और सहायक दस्तावेज़ों के साथ आवेदन पूरा करें।') },
+    { title: t('Track the next steps', 'आगे की प्रक्रिया देखें'), body: t('Check your application status and follow updates from the implementing agency.', 'अपने आवेदन की स्थिति और कार्यान्वयन एजेंसी के अपडेट देखें।') }
+  ];
+  const chats = [
+    {
+      q: t('Who can apply for assistance?', 'सहायता के लिए कौन आवेदन कर सकता है?'),
+      a: t('Eligibility depends on the scheme and your circumstances. Start with the eligibility checker, then review the official requirements.', 'पात्रता योजना और आपकी परिस्थितियों पर निर्भर करती है। पात्रता जांच से शुरुआत करें और आधिकारिक शर्तें देखें।')
+    },
+    {
+      q: t('What documents should I prepare?', 'मुझे कौन से दस्तावेज़ तैयार रखने चाहिए?'),
+      a: t('The required documents vary by application. Use the document guide to review the checklist before applying.', 'आवश्यक दस्तावेज़ आवेदन के अनुसार अलग हो सकते हैं। आवेदन से पहले दस्तावेज़ गाइड में सूची देखें।')
+    },
+    {
+      q: t('Where can I find assistive devices?', 'मुझे सहायक उपकरण कहां मिल सकते हैं?'),
+      a: t('Browse the device catalog to explore available assistive devices and their details.', 'उपलब्ध सहायक उपकरणों और उनकी जानकारी के लिए डिवाइस कैटलॉग देखें।')
+    }
+  ];
+  const typed = chats[ci].a;
+  const ROUTES = {
+    devices: '/devices',
+    eligibility: '/eligibility-checker',
+    documents: '/document-guide'
+  };
+  const ASSISTAI_ROUTE = '/assistAi';
+  const onTabKey = (event) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      const nextTab = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? cats.length - 1
+          : (tab + (event.key === 'ArrowRight' ? 1 : cats.length - 1)) % cats.length;
+      setTab(nextTab);
+      document.getElementById(`tab-${nextTab}`)?.focus();
+    }
+  };
+  const float = (from, to) => ({
+    animate: reduce ? {} : { y: [from, to, from] },
+    transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' }
+  });
+
+  useMotionValueEvent(processProgress, 'change', (progress) => {
+    setActive(progress <= 0 ? -1 : Math.min(steps.length - 1, Math.floor(progress * steps.length)));
+  });
+
+  useEffect(() => {
+    setThinking(true);
+    const timeout = setTimeout(() => setThinking(false), 450);
+    return () => clearTimeout(timeout);
+  }, [ci]);
   
   // Parallax effects
   const y1 = useTransform(scrollY, [0, 500], [0, 150]);
@@ -73,20 +189,20 @@ export function Home() {
       stats: '95% Success Rate'
     },
     {
-      icon: <UsersIcon className="h-12 w-12 text-purple-600" />,
-      title: language === 'en' ? 'Implementing Agencies' : 'कार्यान्वयन एजेंसियां',
-      description: language === 'en'
-        ? '500+ NGOs, National Institutes, and State Corporations'
-        : '500+ एनजीओ, राष्ट्रीय संस्थान, और राज्य निगम',
-      stats: 'Across 28 States'
-    },
+     icon: <BotIcon className="h-12 w-12 text-purple-600" />,
+  title: language === 'en' ? 'AssistAI Guidance' : 'AssistAI मार्गदर्शन',
+  description: language === 'en'
+    ? 'Get AI-powered guidance about assistive devices, eligibility requirements, application steps, and accessibility features.'
+    : 'सहायक उपकरणों, पात्रता आवश्यकताओं, आवेदन प्रक्रिया और सुलभता सुविधाओं के बारे में AI-आधारित मार्गदर्शन प्राप्त करें।',
+  stats: language === 'en' ? 'AI-Powered Assistance' : 'AI-आधारित सहायता'
+},
     {
       icon: <HeartHandshakeIcon className="h-12 w-12 text-red-600" />,
       title: language === 'en' ? 'Support Provided' : 'प्रदान की गई सहायता',
       description: language === 'en'
-        ? 'Full/partial cost coverage for 200+ types of devices'
-        : '200+ प्रकार के उपकरणों के लिए पूर्ण/आंशिक लागत कवरेज',
-      stats: '₹50Cr+ Distributed'
+        ? 'Full/partial cost coverage for 20+ types of devices'
+        : '20+ प्रकार के उपकरणों के लिए पूर्ण/आंशिक लागत कवरेज',
+      stats: '₹50+ Distributed'
     }
   ];
 
@@ -103,7 +219,7 @@ export function Home() {
       icon: <ClockIcon className="h-7 w-7 text-white" />,
       title: language === 'en' ? 'Track Application' : 'आवेदन ट्रैक करें',
       description: language === 'en' ? 'Real-time status updates' : 'वास्तविक समय स्थिति अपडेट',
-      link: '/application-status',
+      link: '/application/status',
       bgColor: 'from-green-500 to-green-700',
       lightColor: 'from-green-400 to-green-600'
     },
@@ -126,10 +242,10 @@ export function Home() {
   ];
 
   const stats = [
-    { number: '2.5M+', label: 'Beneficiaries', icon: <UsersIcon className="h-6 w-6" /> },
-    { number: '200+', label: 'Device Types', icon: <AwardIcon className="h-6 w-6" /> },
-    { number: '500+', label: 'Centers', icon: <GlobeIcon className="h-6 w-6" /> },
-    { number: '50Cr+', label: 'Funds Disbursed', icon: <TrendingUpIcon className="h-6 w-6" /> }
+    { number: '20+', label: 'Beneficiaries', icon: <UsersIcon className="h-6 w-6" /> },
+    { number: '20+', label: 'Device Types', icon: <AwardIcon className="h-6 w-6" /> },
+    { number: '5+', label: 'Centers', icon: <GlobeIcon className="h-6 w-6" /> },
+    { number: '24/7', label: 'AI-Powered Guidance', icon: <BotIcon className="h-6 w-6" /> }
   ];
 
   const testimonials = [
@@ -252,7 +368,7 @@ export function Home() {
             >
               <span className="flex items-center gap-2">
                 <SparklesIcon className="h-4 w-4" />
-                {language === 'en' ? 'Government of India Initiative' : 'भारत सरकार की पहल'}
+                {language === 'en' ? 'Digital Accessibility Platform' : 'डिजिटल सुलभता प्लेटफ़ॉर्म'}
               </span>
             </motion.div>
 
@@ -498,6 +614,127 @@ export function Home() {
           </div>
         </div>
       </section>
+            {/* ================= SUPPORT EXPLORER ================= */}
+      <section aria-labelledby="support-title" className="bg-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:py-24">
+          <Reveal className="max-w-2xl">
+            <h2 id="support-title" className="text-3xl font-bold tracking-tight sm:text-5xl">{t('Support That Makes Everyday Life Easier', 'ऐसी सहायता जो रोज़मर्रा का जीवन आसान बनाए')}</h2>
+            <p className="mt-4 text-lg leading-relaxed text-[#33465F]">{t('Pick a category. Availability and eligibility depend on the scheme and your circumstances.', 'एक श्रेणी चुनें। उपलब्धता और पात्रता योजना और आपकी परिस्थितियों पर निर्भर करती है।')}</p>
+          </Reveal>
+
+          <div role="tablist" aria-label={t('Support categories', 'सहायता श्रेणियां')} onKeyDown={onTabKey} className="mt-10 flex flex-wrap gap-3">
+            {cats.map((c, i) => {
+              const Icon = c.icon; const on = i === tab;
+              return (
+                <button key={c.label} role="tab" id={`tab-${i}`} aria-selected={on} aria-controls="cat-panel" tabIndex={on ? 0 : -1} onClick={() => setTab(i)}
+                  className={`relative inline-flex min-h-[48px] items-center gap-2 rounded-full px-6 text-base font-semibold transition motion-reduce:transition-none ${ring} ${on ? 'text-white' : 'bg-[#EEF2F8] text-[#0B2545] hover:bg-[#E1E8F3]'}`}>
+                  {on && <motion.span layoutId="tabpill" className="absolute inset-0 rounded-full" style={{ background: c.color }} transition={{ type: 'spring', stiffness: 400, damping: 32 }} />}
+                  <span className="relative flex items-center gap-2"><Icon className="h-5 w-5" aria-hidden="true" />{c.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div id="cat-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="mt-8">
+            <AnimatePresence mode="wait">
+              <motion.div key={tab} initial={reduce ? false : { opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={reduce ? {} : { opacity: 0, y: -12 }} transition={{ duration: 0.3 }}
+                className="grid items-center gap-8 rounded-[2.5rem] p-8 sm:p-12 md:grid-cols-5" style={{ background: cat.bg }}>
+                <div className="md:col-span-3">
+                  <h3 className="text-2xl font-bold sm:text-4xl" style={{ color: '#0B2545' }}>{cat.title}</h3>
+                  <p className="mt-3 max-w-lg text-lg leading-relaxed text-[#33465F]">{cat.body}</p>
+                  <ul className="mt-6 flex flex-wrap gap-2">
+                    {cat.items.map((it, k) => (
+                      <motion.li key={it} initial={reduce ? false : { opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 + k * 0.07 }}
+                        className="rounded-full bg-white px-4 py-2 text-sm font-semibold shadow-sm" style={{ color: cat.color }}>{it}</motion.li>
+                    ))}
+                  </ul>
+                  <Link to={ROUTES.devices} className={`mt-8 inline-flex min-h-[50px] items-center gap-2 rounded-full px-7 font-semibold text-white transition hover:opacity-90 ${ring}`} style={{ background: cat.color }}>
+                    {t('Browse devices', 'उपकरण देखें')}<ArrowRightIcon className="h-5 w-5" aria-hidden="true" />
+                  </Link>
+                </div>
+                <div className="hidden justify-center md:col-span-2 md:flex" aria-hidden="true">
+                  <motion.div {...float(0, 12)} className="flex h-44 w-44 items-center justify-center rounded-[2.5rem] bg-white shadow-xl">
+                    <cat.icon className="h-20 w-20" style={{ color: cat.color }} />
+                  </motion.div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= PROCESS ================= */}
+      <section aria-labelledby="process-title" className="bg-[#0B2545] text-white">
+        <div ref={procRef} className="mx-auto max-w-5xl px-5 py-16 sm:px-8 lg:py-24">
+          <Reveal><h2 id="process-title" className="text-3xl font-bold tracking-tight sm:text-5xl">{t('A Simple, Reassuring Process', 'एक सरल और भरोसेमंद प्रक्रिया')}</h2></Reveal>
+          <ol className="relative mt-14 space-y-10">
+            <span aria-hidden="true" className="absolute left-6 top-2 h-[calc(100%-1rem)] w-1 rounded bg-white/15" />
+            <motion.span aria-hidden="true" style={{ scaleY: reduce ? 1 : lineScale, transformOrigin: 'top' }} className="absolute left-6 top-2 h-[calc(100%-1rem)] w-1 rounded bg-gradient-to-b from-[#5EEAD4] to-[#60A5FA]" />
+            {steps.map((s, i) => {
+              const done = i <= active;
+              return (
+                <li key={s.title} className="relative flex gap-6">
+                  <span className={`relative z-10 flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-full text-lg font-bold transition-all duration-500 motion-reduce:transition-none ${done ? 'scale-100 bg-[#5EEAD4] text-[#0B2545]' : 'scale-90 bg-[#1B3A63] text-white/70'}`}>{i + 1}</span>
+                  <div className={`pt-2 transition-opacity duration-500 motion-reduce:transition-none ${done ? 'opacity-100' : 'opacity-50'}`}>
+                    <h3 className="text-xl font-semibold sm:text-2xl">{s.title}</h3>
+                    <p className="mt-1 max-w-xl text-base leading-relaxed text-[#C9D5E6]">{s.body}</p>
+                    {i === 1 && <div className="mt-3 flex flex-wrap gap-2">
+                      <Link to={ROUTES.eligibility} className={`rounded-full bg-white px-5 py-2 text-sm font-semibold text-[#0B2545] hover:bg-[#E3ECFF] ${ring} focus-visible:ring-offset-[#0B2545]`}>{t('Check eligibility', 'पात्रता जांचें')}</Link>
+                      <Link to={ROUTES.documents} className={`rounded-full border-2 border-white/60 px-5 py-2 text-sm font-semibold hover:bg-white/10 ${ring} focus-visible:ring-offset-[#0B2545]`}>{t('Document guide', 'दस्तावेज़ गाइड')}</Link>
+                    </div>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+
+      {/* ================= ASSISTAI ================= */}
+      <section aria-labelledby="ai-title" className="relative overflow-hidden">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-2 lg:py-24">
+          <Reveal>
+            <h2 id="ai-title" className="text-3xl font-bold tracking-tight sm:text-5xl">{t('Guidance When You Need It. Support at Every Step.', 'जब ज़रूरत हो, मार्गदर्शन। हर कदम पर सहायता।')}</h2>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-[#33465F]">
+              {t('Divyang Sahayak AssistAI is an AI-powered companion that helps you understand disability-related schemes, assistive technologies, accessibility, certificates, and application questions.',
+                 'दिव्यांग सहायक AssistAI एक AI-आधारित साथी है जो योजनाओं, सहायक तकनीकों, सुलभता, प्रमाणपत्रों और आवेदन संबंधी प्रश्नों को समझने में मदद करता है।')}
+            </p>
+            <p className="mt-3 text-base text-[#4A5C75]">{t('AssistAI offers information and guidance. It does not decide eligibility.', 'AssistAI जानकारी और मार्गदर्शन देता है। यह पात्रता का निर्णय नहीं करता।')}</p>
+            <Link to={ASSISTAI_ROUTE} className={`mt-8 inline-flex min-h-[54px] items-center gap-2 rounded-full bg-[#6D28D9] px-8 text-base font-semibold text-white shadow-[0_14px_30px_-10px_rgba(109,40,217,0.7)] transition hover:-translate-y-0.5 hover:bg-[#5B21B6] motion-reduce:transition-none ${ring}`}>
+              <MessageCircleIcon className="h-5 w-5" aria-hidden="true" />{t('Chat with AssistAI', 'AssistAI से चैट करें')}
+            </Link>
+          </Reveal>
+
+          <Reveal delay={0.1}>
+            <div className="rounded-[2rem] bg-white p-5 shadow-[0_40px_70px_-35px_rgba(11,37,69,0.5)] ring-1 ring-[#0B2545]/5 sm:p-7">
+              <p className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#6D28D9]"><BotIcon className="h-5 w-5" aria-hidden="true" />{t('Try a sample question (preview only)', 'एक नमूना प्रश्न चुनें (केवल पूर्वावलोकन)')}</p>
+              <div className="flex flex-wrap gap-2">
+                {chats.map((c, i) => (
+                  <button key={c.q} onClick={() => setCi(i)} aria-pressed={i === ci}
+                    className={`min-h-[44px] rounded-full px-4 text-sm font-semibold transition motion-reduce:transition-none ${ring} ${i === ci ? 'bg-[#6D28D9] text-white' : 'bg-[#F1ECFB] text-[#4C1D95] hover:bg-[#E5DBF9]'}`}>{c.q}</button>
+                ))}
+              </div>
+              <div className="mt-5 min-h-[190px] space-y-4" aria-live="polite">
+                <AnimatePresence mode="wait">
+                  <motion.div key={ci} initial={reduce ? false : { opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} className="ml-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-br-md bg-[#0B2545] px-5 py-3 text-white">
+                    <SendIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />{chats[ci].q}
+                  </motion.div>
+                </AnimatePresence>
+                <div className="flex gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E9E1FB] text-[#6D28D9]"><BotIcon className="h-5 w-5" aria-hidden="true" /></span>
+                  <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-[#F1F4F9] px-5 py-3 leading-relaxed">
+                    {thinking ? (
+                      <span className="flex gap-1.5 py-2" aria-label={t('AssistAI is typing', 'AssistAI लिख रहा है')}>
+                        {[0, 1, 2].map((d) => <motion.span key={d} className="h-2 w-2 rounded-full bg-[#6D28D9]" animate={reduce ? {} : { y: [0, -6, 0] }} transition={{ duration: 0.7, repeat: Infinity, delay: d * 0.15 }} />)}
+                      </span>
+                    ) : typed}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
 
       {/* Testimonials Section */}
       <section className="py-20 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
@@ -565,58 +802,7 @@ export function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-purple-600 relative overflow-hidden">
-        {/* Animated background */}
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-black/20" />
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              rotate: [0, 90, 0],
-            }}
-            transition={{
-              duration: 20,
-              repeat: Infinity,
-              ease: "linear"
-            }}
-            className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-r from-white/10 to-transparent rounded-full"
-          />
-        </div>
-
-        <div className="relative container mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-            className="max-w-3xl mx-auto"
-          >
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              {language === 'en'
-                ? 'Ready to Transform Your Life?'
-                : 'अपना जीवन बदलने के लिए तैयार हैं?'}
-            </h2>
-            <p className="text-xl text-white/90 mb-10">
-              {language === 'en'
-                ? 'Join thousands of beneficiaries who have already received assistance'
-                : 'हजारों लाभार्थियों से जुड़ें जो पहले ही सहायता प्राप्त कर चुके हैं'}
-            </p>
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Link
-                to="/beneficiary/apply"
-                className="inline-flex items-center gap-3 px-10 py-5 bg-white text-blue-900 rounded-full font-bold text-xl shadow-2xl hover:shadow-3xl transition-all"
-              >
-                {language === 'en' ? 'Apply Now - It\'s Free' : 'अभी आवेदन करें - मुफ्त है'}
-                <ArrowRightIcon className="h-6 w-6" />
-              </Link>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+    
 
       {/* Enhanced Footer */}
       <footer className="bg-gray-900 text-white pt-20 pb-8">
@@ -626,7 +812,7 @@ export function Home() {
             {/* Brand Column */}
             <div className="lg:col-span-1">
               <h3 className="text-2xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                ADIP Scheme
+                Divyang Sahayak
               </h3>
               <p className="text-gray-400 mb-6">
                 {language === 'en'
@@ -753,7 +939,7 @@ export function Home() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-400">Email</div>
-                  <div className="text-lg font-semibold">support@adip.gov.in</div>
+                  <div className="text-lg font-semibold">support@divyangsahayak.in</div>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -761,7 +947,7 @@ export function Home() {
                   <MapPinIcon className="h-6 w-6 text-blue-400" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">Head Office</div>
+                  {/* <div className="text-sm text-gray-400">Head Office</div> */}
                   <div className="text-lg font-semibold">New Delhi, India</div>
                 </div>
               </div>
@@ -787,7 +973,7 @@ export function Home() {
       </footer>
 
       {/* Floating Action Button */}
-      <motion.div
+      {/* <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 2, type: "spring" }}
@@ -800,7 +986,9 @@ export function Home() {
           <span className="text-lg">?</span>
           <span>{language === 'en' ? 'Need Help?' : 'सहायता चाहिए?'}</span>
         </Link>
-      </motion.div>
+      </motion.div> */}
     </div>
   );
 }
+
+

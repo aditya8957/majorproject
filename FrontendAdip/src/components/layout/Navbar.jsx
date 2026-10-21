@@ -7,6 +7,7 @@ import {
   HelpCircle, Phone, Award, Sparkles
 } from "lucide-react";
 import { useAccessibility } from "../../context/AccessibilityContext";
+import { useTheme } from "../../context/ThemeContext";
 import { useDispatch, useSelector } from "react-redux";
 import { logoutUser } from "../../authSlice";
 import { AccessibilityPanel } from "../AccessibilityPanel";
@@ -23,6 +24,7 @@ export function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { language, setLanguage } = useAccessibility();
+  const { theme, toggleTheme } = useTheme();
   const dispatch = useDispatch();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
@@ -84,7 +86,7 @@ export function Navbar() {
     { path: "/contact", label: language === "en" ? "Contact Us" : "संपर्क", icon: <Phone className="h-4 w-4" /> },
     { path: "/about", label: language === "en" ? "About Us" : "हमारे बारे में", icon: <Award className="h-4 w-4" /> },
     { path: "/eligibility-checker", label: language === "en" ? "Check Eligibility" : "पात्रता", icon: <Award className="h-4 w-4" /> },
-    { path: "/news", label: language === "en" ? "News & Updates" : "समाचार", icon: <Sparkles className="h-4 w-4" /> },
+    // { path: "/news", label: language === "en" ? "News & Updates" : "समाचार", icon: <Sparkles className="h-4 w-4" /> },
   ];
 
   // Mock notifications
@@ -115,11 +117,11 @@ export function Navbar() {
               <motion.div
                 className="relative"
               >
-                <img
-                  src="https://depwd.gov.in/wp-content/themes/sdo-theme/images/emblem.svg"
-                  alt="Government of India Emblem"
-                  className="h-12 drop-shadow-md"
-                />
+              <img
+              src="/mark.svg"
+              alt="Divyang Sahayak logo"
+              className="h-10 w-10 object-contain"
+            />
               </motion.div>
               <div>
                 <motion.h1 
@@ -260,6 +262,17 @@ export function Navbar() {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 ml-2">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={toggleTheme}
+                  aria-label={theme === "dark" ? "Switch to day mode" : "Switch to night mode"}
+                  title={theme === "dark" ? "Switch to day mode" : "Switch to night mode"}
+                  className="p-2 rounded-full text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                </motion.button>
+
                 {/* Notifications (for authenticated users) */}
                 {/* {isAuthenticated && (
                   <div className="relative" ref={notificationsRef}>
@@ -436,12 +449,16 @@ export function Navbar() {
                             </Link>
 
                             <Link
-                              to="/ngo/register"
+                              to={user?.role === "ngo" ? "/ngo/dashboard" : "/ngo/register"}
                               className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-green-50 transition-all duration-300 group"
                               onClick={() => setShowUserMenu(false)}
                             >
                               <Award className="h-4 w-4 text-gray-500 group-hover:text-green-600" />
-                              <span className="flex-1">{language === "en" ? "NGO Registration" : "एनजीओ पंजीकरण"}</span>
+                              <span className="flex-1">
+                                {user?.role === "ngo"
+                                  ? (language === "en" ? "NGO Dashboard" : "एनजीओ डैशबोर्ड")
+                                  : (language === "en" ? "NGO Registration" : "एनजीओ पंजीकरण")}
+                              </span>
                             </Link>
 
                             {/* Divider */}
@@ -568,6 +585,16 @@ export function Navbar() {
 
                   {/* Mobile Accessibility and Language */}
                   <div className="flex items-center gap-2 p-3 mt-2 border-t border-gray-100">
+                    <button
+                      onClick={toggleTheme}
+                      aria-label={theme === "dark" ? "Switch to day mode" : "Switch to night mode"}
+                      title={theme === "dark" ? "Switch to day mode" : "Switch to night mode"}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-100 hover:bg-gray-200 dark:hover:bg-slate-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                      <span className="font-medium">{theme === "dark" ? "Day" : "Night"}</span>
+                    </button>
+
                     <button
                       onClick={toggleAccessibility}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 hover:from-blue-200 hover:to-purple-200 transition-all duration-300"

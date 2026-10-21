@@ -1,5 +1,5 @@
 import React from 'react';
-import { ApplicationStatus } from '../store';
+import { normalizeApplicationStatus } from '../../utils/applicationStatus';
 import {
   Clock,
   Eye,
@@ -12,51 +12,66 @@ import {
 } from 'lucide-react';
 
 export const StatusBadge = ({ status }) => {
-
+  const normalizedStatus = normalizeApplicationStatus(status);
   const config = {
-    [ApplicationStatus.PENDING_VERIFICATION]: {
+    submitted: {
       color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       icon: Clock,
-      label: 'Pending Verification'
+      label: 'Submitted'
     },
-    [ApplicationStatus.UNDER_REVIEW]: {
+    under_review: {
       color: 'bg-blue-100 text-blue-800 border-blue-200',
       icon: Eye,
       label: 'Under Review'
     },
-    [ApplicationStatus.APPROVED]: {
+    approved: {
       color: 'bg-green-100 text-green-800 border-green-200',
       icon: CheckCircle2,
       label: 'Approved'
     },
-    [ApplicationStatus.NGO_ASSIGNED]: {
+    ngo_assigned: {
       color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
       icon: Building2,
       label: 'NGO Assigned'
     },
-    [ApplicationStatus.PROCESSING_AT_NGO]: {
+    processing_at_ngo: {
       color: 'bg-purple-100 text-purple-800 border-purple-200',
       icon: Package,
       label: 'Processing at NGO'
     },
-    [ApplicationStatus.READY_FOR_DISTRIBUTION]: {
+    aid_preparation: {
+      color: 'bg-purple-100 text-purple-800 border-purple-200', icon: Package, label: 'Aid Preparation'
+    },
+    aid_ready: {
+      color: 'bg-blue-100 text-blue-800 border-blue-200', icon: Package, label: 'Aid Ready'
+    },
+    out_for_delivery: {
       color: 'bg-orange-100 text-orange-800 border-orange-200',
       icon: Truck,
-      label: 'Ready for Distribution'
+      label: 'Out for Delivery'
     },
-    [ApplicationStatus.DELIVERED]: {
+    delivered: {
       color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
       icon: Target,
       label: 'Delivered'
     },
-    [ApplicationStatus.REJECTED]: {
+    proof_submitted: {
+      color: 'bg-orange-100 text-orange-800 border-orange-200', icon: Eye, label: 'Proof Submitted'
+    },
+    proof_rejected: {
+      color: 'bg-red-100 text-red-800 border-red-200', icon: XCircle, label: 'Proof Rejected'
+    },
+    completed: {
+      color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle2, label: 'Completed'
+    },
+    rejected: {
       color: 'bg-red-100 text-red-800 border-red-200',
       icon: XCircle,
       label: 'Rejected'
     },
   };
 
-  const { color, icon: Icon, label } = config[status] || {};
+  const { color, icon: Icon, label } = config[normalizedStatus] || {};
 
   if (!color) return null; // safety check
 

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { fetchApplications, fetchNGOs, fetchDashboardStats, fetchNGORegistrationRequests, approveNGORequest, rejectNGORequest } from '../store';
 import { FileText, Clock, CheckCircle2, Building2, Download, AlertCircle, XCircle } from 'lucide-react';
 import { motion } from "framer-motion";  
@@ -18,6 +19,7 @@ import {
 
 export const DashboardOverview = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { applications, ngos, ngoRegistrationRequests, dashboardStats, loading, error } = useSelector((state) => state.app);
   const [expandedNGO, setExpandedNGO] = React.useState(null);
   const [approveModal, setApproveModal] = React.useState(null);
@@ -53,6 +55,52 @@ export const DashboardOverview = () => {
     }
   };
 
+    const handleExportReport = () => {
+    const stats = dashboardStats?.stats;
+    const chartData = dashboardStats?.chartData || [];
+
+    if (!stats) {
+      alert("No report data available.");
+      return;
+    }
+
+    const rows = [
+      ["Divyang Sahayak - Application Report"],
+      ["Metric", "Count"],
+      ["Total Applications", stats.total ?? 0],
+      ["Pending", stats.pending ?? 0],
+      ["Approved", stats.approved ?? 0],
+      ["Rejected", stats.rejected ?? 0],
+      ["Processing", stats.processing ?? 0],
+      [],
+      ["Month", "Applications"],
+      ...chartData.map(item => [item.name, item.apps ?? 0])
+    ];
+
+    const csv = rows
+      .map(row =>
+        row.map(value =>
+          `"${String(value).replace(/"/g, '""')}"`
+        ).join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "Divyang-Sahayak-Application-Report.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+  };
+
   const handleRejectNGO = async () => {
     if (!rejectModal) return;
     
@@ -77,7 +125,7 @@ export const DashboardOverview = () => {
     },
     {
       label: 'Pending Verification',
-      value: dashboardStats?.stats?.pending || 0,
+      value: dashboardStats?.stats?.pendingVerification || dashboardStats?.stats?.pending || 0,
       icon: Clock,
       color: 'bg-red-500'
     },
@@ -89,10 +137,13 @@ export const DashboardOverview = () => {
     },
     {
       label: 'NGO Assigned',
-      value: dashboardStats?.stats?.processing || 0,
+      value: dashboardStats?.stats?.ngoAssigned || 0,
       icon: Building2,
       color: 'bg-green-500'
     },
+    { label: 'Out for Delivery', value: dashboardStats?.stats?.outForDelivery || 0, icon: Building2, color: 'bg-blue-500' },
+    { label: 'Proof Verification Pending', value: dashboardStats?.stats?.proofSubmitted || 0, icon: AlertCircle, color: 'bg-orange-500' },
+    { label: 'Completed', value: dashboardStats?.stats?.completed || 0, icon: CheckCircle2, color: 'bg-emerald-500' },
     {
       label: 'Pending NGO Requests',
       value: ngoRegistrationRequests?.pending?.length || 0,
@@ -112,6 +163,7 @@ export const DashboardOverview = () => {
       <div className="flex items-center justify-center h-96">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent"></div>
       </div>
+
     );
   }
 
@@ -150,10 +202,13 @@ export const DashboardOverview = () => {
           </p>
         </div>
 
-        <button className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all">
-          <Download size={16} />
-          Export Report
-        </button>
+       <button
+        onClick={handleExportReport}
+        className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-50 transition-all"
+      >
+        <Download size={16} />
+        Export Report
+      </button>
       </div>
 
       {/* Stats Cards */}
@@ -182,6 +237,16 @@ export const DashboardOverview = () => {
           </motion.div>
         ))}
       </div>
+
+      {applications.filter(application => application.status === 'proof_submitted').length > 0 && (
+        <div className="bg-orange-50 p-8 rounded-3xl shadow-sm border border-orange-200">
+          <div className="flex items-center justify-between mb-6">
+            <div><h3 className="text-lg font-bold text-orange-900">Distribution Verification Requests</h3><p className="text-sm text-orange-700 mt-1">{applications.filter(application => application.status === 'proof_submitted').length} proof submissions await review</p></div>
+            <AlertCircle className="text-orange-600" />
+          </div>
+          <div className="space-y-3">{applications.filter(application => application.status === 'proof_submitted').map(application => <div key={application.id} className="flex flex-col gap-3 rounded-2xl bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono font-bold text-slate-900">{application.id}</p><p className="text-sm text-slate-600">{application.applicantName} · {application.deviceRequested}</p></div><button onClick={() => navigate(`/admin/applications/${application.id}`)} className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white">Review</button></div>)}</div>
+        </div>
+      )}
 
       {/* Pending NGO Registration Requests */}
       {ngoRegistrationRequests?.pending && ngoRegistrationRequests.pending.length > 0 && (
@@ -279,14 +344,14 @@ export const DashboardOverview = () => {
       )}
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-8">
         {/* Bar Chart */}
-        <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+        <div className="min-w-0 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
           <h3 className="text-lg font-bold text-slate-900 mb-6">
             Application Trends
           </h3>
 
-          <div className="h-80 w-full min-w-[300px] min-h-[300px]">
+          <div className="h-80 min-h-[320px] w-full min-w-0">
             {dashboardStats?.chartData && dashboardStats.chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dashboardStats.chartData}>
@@ -316,10 +381,33 @@ export const DashboardOverview = () => {
                   />
                   <Bar
                     dataKey="apps"
-                    fill="#10b981"
                     radius={[4, 4, 0, 0]}
                     barSize={40}
-                  />
+                  >
+                    {dashboardStats.chartData.map((entry, index) => {
+                      const colors = [
+                        "#6366f1",
+                        "#06b6d4",
+                        "#10b981",
+                        "#f59e0b",
+                        "#f43f5e",
+                        "#8b5cf6",
+                        "#3b82f6",
+                        "#14b8a6",
+                        "#755b49",
+                        "#b01261",
+                        "#84cc16",
+                        "#a855f7",
+                      ];
+
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={colors[index % colors.length]}
+                        />
+                      );
+                    })}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -331,12 +419,12 @@ export const DashboardOverview = () => {
         </div>
 
         {/* Pie Chart */}
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
+        <div className="min-w-0 bg-white p-8 rounded-3xl shadow-sm border border-slate-100">
           <h3 className="text-lg font-bold text-slate-900 mb-6">
             Status Distribution
           </h3>
 
-           <div className="h-64 w-full min-w-[200px] min-h-[200px]">
+           <div className="h-64 min-h-[256px] w-full min-w-0">
             {dashboardStats?.pieData && dashboardStats.pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

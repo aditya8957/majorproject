@@ -40,14 +40,14 @@ api.interceptors.response.use(
 /* ---------------- Application Status ---------------- */
 
 export const ApplicationStatus = {
-  PENDING_VERIFICATION: "PENDING_VERIFICATION",
-  UNDER_REVIEW: "UNDER_REVIEW",
-  APPROVED: "APPROVED",
-  NGO_ASSIGNED: "NGO_ASSIGNED",
-  PROCESSING_AT_NGO: "PROCESSING_AT_NGO",
-  READY_FOR_DISTRIBUTION: "READY_FOR_DISTRIBUTION",
-  DELIVERED: "DELIVERED",
-  REJECTED: "REJECTED",
+  PENDING_VERIFICATION: "submitted",
+  UNDER_REVIEW: "under_review",
+  APPROVED: "approved",
+  NGO_ASSIGNED: "ngo_assigned",
+  PROCESSING_AT_NGO: "processing_at_ngo",
+  READY_FOR_DISTRIBUTION: "ready_for_distribution",
+  DELIVERED: "delivered",
+  REJECTED: "rejected",
 };
 
 /* ---------------- Initial State ---------------- */
@@ -106,6 +106,13 @@ const appSlice = createSlice({
         state.applications[index] = action.payload;
       }
     },
+    upsertApplication: (state, action) => {
+      const application = action.payload;
+      const index = state.applications.findIndex(item => item.id === application.id);
+      if (index === -1) state.applications.unshift(application);
+      else state.applications[index] = application;
+      if (state.selectedApplication?.id === application.id) state.selectedApplication = application;
+    },
     setNGOs: (state, action) => {
       state.ngos = action.payload;
     },
@@ -150,6 +157,7 @@ export const {
   setApplications,
   setSelectedApplication,
   updateApplicationInList,
+  upsertApplication,
   setNGOs,
   setDashboardStats,
   updateDocumentStatus,
@@ -178,6 +186,8 @@ export const fetchApplicationById = (id) => async (dispatch) => {
     dispatch(setLoading(true));
     const response = await api.get(`/admin/applications/${id}`);
     dispatch(setSelectedApplication(response.data));
+    dispatch(upsertApplication(response.data));
+    return response.data;
   } catch (error) {
     dispatch(setError(error.response?.data?.error || 'Failed to fetch application'));
   }
@@ -187,10 +197,16 @@ export const fetchApplicationById = (id) => async (dispatch) => {
 export const updateApplicationStatus = (data) => async (dispatch) => {
   try {
     dispatch(setLoading(true));
-    await api.put(`/admin/applications/${data.id}/status`, data);
-    dispatch(fetchApplications()); // Refresh the list
+    let response;
+    if (data.ngoId) {
+      response = await api.post(`/admin/applications/${data.id}/assign-ngo`, { ngoId: data.ngoId });
+    } else {
+      response = await api.put(`/admin/applications/${data.id}/status`, data);
+    }
+    await dispatch(fetchApplications());
+    await dispatch(fetchApplicationById(data.id));
     dispatch(setLoading(false));
-    return { success: true };
+    return { success: true, application: response.data.application };
   } catch (error) {
     dispatch(setError(error.response?.data?.error || 'Failed to update status'));
     return { success: false };
@@ -228,11 +244,10 @@ export const verifyDocumentStatus = (data) => async (dispatch) => {
     const updatedApp = response.data.application;
     
     // 3. Update Redux store with FRESH data
-    dispatch(setSelectedApplication(updatedApp));
+    await dispatch(fetchApplicationById(appId));
     
     // 4. Update applications list bhi
-    const appsResponse = await api.get('/admin/applications');
-    dispatch(setApplications(appsResponse.data));
+    await dispatch(fetchApplications());
     
     dispatch(setLoading(false));
     
@@ -247,10 +262,34 @@ export const verifyDocumentStatus = (data) => async (dispatch) => {
   }
 };
 
+export const verifyDistribution = (data) => async (dispatch) => {
+  try {
+    dispatch(setLoading(true));
+    const response = await api.put(`/admin/applications/${data.id}/verify-distribution`, {
+      status: data.status,
+      comment: data.comment
+    });
+    dispatch(fetchApplications());
+    dispatch(fetchApplicationById(data.id));
+    dispatch(setLoading(false));
+    return { success: true };
+  } catch (error) {
+    dispatch(setError(error.response?.data?.message || 'Failed to verify distribution proof'));
+    return { success: false };
+  }
+};
+
 // Fetch NGOs
 export const fetchNGOs = () => async (dispatch) => {
   try {
     const response = await api.get('/admin/ngos');
+    console.debug('[admin/ngos] API response:', {
+      shape: Array.isArray(response.data) ? 'array' : typeof response.data,
+      count: Array.isArray(response.data) ? response.data.length : undefined,
+      ngos: Array.isArray(response.data)
+        ? response.data.map(({ name, status }) => ({ name, status }))
+        : response.data
+    });
     dispatch(setNGOs(response.data));
   } catch (error) {
     dispatch(setError(error.response?.data?.error || 'Failed to fetch NGOs'));
@@ -288,9 +327,9 @@ export const fetchNGORegistrationRequests = () => async (dispatch) => {
     
     // Fetch all NGO requests with different statuses
     const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
-      api.get('/ngo/admin/requests?status=Pending'),
-      api.get('/ngo/admin/requests?status=Approved'),
-      api.get('/ngo/admin/requests?status=Rejected')
+      api.get('/ngo/admin/requests?status=pending'),
+      api.get('/ngo/admin/requests?status=approved'),
+      api.get('/ngo/admin/requests?status=rejected')
     ]);
 
     dispatch(setNGORegistrationRequests({

@@ -6,6 +6,7 @@ import { checkAuth } from "./authSlice";
 import { Navbar } from "./components/layout/Navbar";
 import { Home } from "./pages/Home";
 import { AccessibilityProvider } from "./context/AccessibilityContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import { Registration } from "./pages/Registration";
 import { NGOApplication } from "./pages/NGOApplication";
 import { DeviceCatalog } from "./pages/DeviceCatalog";
@@ -23,6 +24,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ProfilePage from './components/ProfilePage'; 
 import Admin from "./adminPanel/Admin";
 import AssistAi from './pages/AssistAi';
+import NGODashboard from './pages/NGODashboard';
+import NGOApplicationDetails from './pages/NGOApplicationDetails';
+import NGOWorkflowPage from './pages/NGOWorkflowPage';
 
 
 // Providers component
@@ -30,7 +34,7 @@ const Providers = ({ children }) => (
   <ErrorBoundary>
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <AccessibilityProvider>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </AccessibilityProvider>
     </GoogleOAuthProvider>
   </ErrorBoundary>
@@ -84,6 +88,8 @@ function App() {
             path="/admin/*"
             element={isAuthenticated && user?.role === "admin" ? <Admin /> : <Navigate to="/" replace />}
           />
+            <Route path="/ngo/dashboard" element={isAuthenticated && user?.role === 'ngo' ? <NGODashboard /> : <Navigate to="/auth/login" replace />} />
+            <Route path="/ngo/applications/:id" element={isAuthenticated && user?.role === 'ngo' ? <NGOWorkflowPage /> : <Navigate to="/auth/login" replace />} />
 
             {/* Admin Routes - Only accessible if user has admin role */}
             {/* <Route element={<AdminRoute isAdmin={isAdmin} />}>

@@ -26,15 +26,27 @@ export const NGOManagementPage = () => {
     fetchNGORequests();
   }, []);
 
+  useEffect(() => {
+    console.debug('[NGOManagementPage] Redux approved NGO state:',
+      ngos.map(({ name, status }) => ({ name, status }))
+    );
+  }, [ngos]);
+
+  useEffect(() => {
+    console.debug('[NGOManagementPage] final approved NGO array:',
+      approvedNGOs.map(({ ngoName, status }) => ({ name: ngoName, status }))
+    );
+  }, [approvedNGOs]);
+
   const fetchNGORequests = async () => {
     try {
       setLoading(true);
       setError(null);
 
       // Fetch all requests
-      const pendingRes = await axiosClient.get('/ngo/admin/requests?status=Pending');
-      const approvedRes = await axiosClient.get('/ngo/admin/requests?status=Approved');
-      const rejectedRes = await axiosClient.get('/ngo/admin/requests?status=Rejected');
+      const pendingRes = await axiosClient.get('/ngo/admin/requests?status=pending');
+      const approvedRes = await axiosClient.get('/ngo/admin/requests?status=approved');
+      const rejectedRes = await axiosClient.get('/ngo/admin/requests?status=rejected');
 
       setPendingRequests(pendingRes.data.data || []);
       setApprovedNGOs(approvedRes.data.data || []);

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import BeneficiaryDistributionPanel from './BeneficiaryDistributionPanel';
+import { getDeviceLabel, getDisabilityTypeLabel } from '../utils/enumConfig';
 
 const ProfilePage = () => {
   const [profileData, setProfileData] = useState(null);
@@ -141,6 +143,10 @@ const ProfilePage = () => {
       case 'approved': return 'bg-green-100 text-green-800 border-green-200';
       case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
       case 'processing': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'completed':
+      case 'beneficiary_confirmed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'proof_submitted': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'out_for_delivery': return 'bg-blue-100 text-blue-800 border-blue-200';
       default: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
   };
@@ -314,8 +320,8 @@ const ProfilePage = () => {
                           <span className="text-sm font-medium text-gray-600">
                             #{app.applicationId}
                           </span>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(app.applicationStatus)}`}>
-                            {app.applicationStatus || 'Pending'}
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(app.distribution?.status || app.ngoStatus || app.applicationStatus)}`}>
+                            {app.distribution?.status || app.ngoStatus || app.applicationStatus || 'Pending'}
                           </span>
                         </div>
                         
@@ -324,11 +330,11 @@ const ProfilePage = () => {
                         <div className="space-y-2 text-sm text-gray-600 mb-4">
                           <p>
                             <span className="font-medium">Device:</span>{' '}
-                            <span className="capitalize">{app.requiredDevice}</span>
+                            <span>{getDeviceLabel(app.requiredDevice)}</span>
                           </p>
                           <p>
                             <span className="font-medium">Disability:</span>{' '}
-                            {app.disabilityType} ({app.disabilityPercentage}%)
+                            {getDisabilityTypeLabel(app.disabilityType)} ({app.disabilityPercentage}%)
                           </p>
                           <p>
                             <span className="font-medium">Submitted:</span>{' '}
@@ -404,8 +410,8 @@ const ProfilePage = () => {
                 <span className="text-sm font-medium text-gray-600">
                   Application ID: <span className="text-gray-900 font-semibold">{selectedApplication.applicationId}</span>
                 </span>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(selectedApplication.applicationStatus)}`}>
-                  {selectedApplication.applicationStatus || 'Pending'}
+                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(selectedApplication.distribution?.status || selectedApplication.ngoStatus || selectedApplication.applicationStatus)}`}>
+                  {selectedApplication.distribution?.status || selectedApplication.ngoStatus || selectedApplication.applicationStatus || 'Pending'}
                 </span>
               </div>
 
@@ -436,7 +442,7 @@ const ProfilePage = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Type</p>
-                    <p className="text-sm font-medium text-gray-900 capitalize">{selectedApplication.disabilityType}</p>
+                    <p className="text-sm font-medium text-gray-900">{getDisabilityTypeLabel(selectedApplication.disabilityType)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Percentage</p>
@@ -473,8 +479,12 @@ const ProfilePage = () => {
                 <h4 className="text-md font-semibold text-gray-900 mb-3">Device Information</h4>
                 <div className="bg-blue-50 rounded-lg p-4">
                   <p className="text-sm font-medium text-blue-900 mb-2">Required Device</p>
-                  <p className="text-lg font-bold text-blue-700 capitalize">{selectedApplication.requiredDevice}</p>
+                  <p className="text-lg font-bold text-blue-700">{getDeviceLabel(selectedApplication.requiredDevice)}</p>
                 </div>
+                <BeneficiaryDistributionPanel
+                  application={selectedApplication}
+                  onUpdated={() => viewApplicationDetails(selectedApplication.applicationId)}
+                />
               </div>
             </div>
 

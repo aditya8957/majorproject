@@ -641,7 +641,7 @@ export function NGOApplication() {
                   </p>
                 </div>
 
-                {statusData.status === "Approved" && statusData.approvedAt && (
+                {statusData.status === "approved" && statusData.approvedAt && (
                   <div className="border border-green-300 rounded-lg p-4 bg-green-50">
                     <p className="text-gray-600 text-sm">
                       {language === "en" ? "Approved On" : "पर अनुमोदित"}
@@ -654,7 +654,7 @@ export function NGOApplication() {
                   </div>
                 )}
 
-                {statusData.status === "Rejected" && statusData.rejectedAt && (
+                {statusData.status === "rejected" && statusData.rejectedAt && (
                   <div className="border border-red-300 rounded-lg p-4 bg-red-50">
                     <p className="text-gray-600 text-sm">
                       {language === "en" ? "Rejected On" : "पर अस्वीकृत"}
@@ -677,7 +677,7 @@ export function NGOApplication() {
                 </div>
               )}
 
-              {statusData.status === "Pending" && (
+              {statusData.status === "pending" && (
                 <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-blue-800">
                     {language === "en"

@@ -4,6 +4,7 @@ import api from "../utils/api";
 import { useAccessibility } from "../context/AccessibilityContext";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux"; 
+import { DEVICE_LABELS, DISABILITY_LABELS, DEVICE_TYPES, DISABILITY_TYPES } from "../utils/enumConfig";
 
 
 const indianStates = [
@@ -15,6 +16,49 @@ const indianStates = [
   "Jammu & Kashmir","Ladakh","Lakshadweep","Puducherry"
 ];
 
+const getDateOfBirthError = (dateOfBirth) => {
+  if (!dateOfBirth) {
+    return "Date of birth is required.";
+  }
+
+  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  const birthDate = new Date(year, month - 1, day);
+  const today = new Date();
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  if (birthDate > todayDate) {
+    return "Date of birth cannot be in the future.";
+  }
+
+  let age = today.getFullYear() - year;
+  const birthdayHasPassed =
+    today.getMonth() > month - 1 ||
+    (today.getMonth() === month - 1 && today.getDate() >= day);
+
+  if (!birthdayHasPassed) {
+    age -= 1;
+  }
+
+  if (age < 1 || age > 130) {
+    return "Enter Valid Age";
+  }
+
+  return "";
+};
+
+const getDisabilityPercentageError = (percentage) => {
+  if (percentage === "") {
+    return "Disability percentage is required.";
+  }
+
+  const numericPercentage = Number(percentage);
+  if (!Number.isInteger(numericPercentage) || numericPercentage < 0 || numericPercentage > 100) {
+    return "Disability percentage must be an integer between 0 and 100.";
+  }
+
+  return "";
+};
+
 export function Registration() {
   const { language } = useAccessibility();
   const navigate = useNavigate();
@@ -22,7 +66,7 @@ export function Registration() {
 
   const [formData, setFormData] = useState({
     fullName: "",
-    age: "",
+    dateOfBirth: "",
     gender: "",
     phone: "",
     email: "",
@@ -40,6 +84,8 @@ export function Registration() {
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [dateOfBirthTouched, setDateOfBirthTouched] = useState(false);
+  const [disabilityPercentageTouched, setDisabilityPercentageTouched] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -50,7 +96,16 @@ export function Registration() {
 
   const handleChange = (e) => {
     const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+    if (e.target.name === "dateOfBirth") {
+      setDateOfBirthTouched(true);
+    }
+    if (e.target.name === "disabilityPercentage") {
+      setDisabilityPercentageTouched(true);
+    }
+    setFormData((prevFormData) => ({
+      ...prevFormData,
+      [e.target.name]: value,
+    }));
   };
 
   const handleFileChange = (e) => {
@@ -60,7 +115,7 @@ export function Registration() {
   const resetForm = () => {
     setFormData({
       fullName: "",
-      age: "",
+      dateOfBirth: "",
       gender: "",
       phone: "",
       email: "",
@@ -75,10 +130,24 @@ export function Registration() {
     });
     setFile(null);
     setError(null);
+    setDateOfBirthTouched(false);
+    setDisabilityPercentageTouched(false);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const dateOfBirthError = getDateOfBirthError(formData.dateOfBirth);
+    if (dateOfBirthError) {
+      setDateOfBirthTouched(true);
+      return;
+    }
+
+    const disabilityPercentageError = getDisabilityPercentageError(formData.disabilityPercentage);
+    if (disabilityPercentageError) {
+      setDisabilityPercentageTouched(true);
+      return;
+    }
     
     // Validation
     if (!formData.declarationAccepted) {
@@ -222,16 +291,27 @@ export function Registration() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  {language === "en" ? "Age" : "उम्र"} *
+                  {language === "en" ? "Date of Birth" : "जन्म तिथि"} *
                 </label>
                 <input
-                  type="number"
-                  name="age"
-                  value={formData.age}
+                  type="date"
+                  name="dateOfBirth"
+                  value={formData.dateOfBirth}
                   onChange={handleChange}
-                  className="w-full p-2 border rounded-md"
+                  max={new Date().toISOString().split("T")[0]}
+                  aria-invalid={dateOfBirthTouched && Boolean(getDateOfBirthError(formData.dateOfBirth))}
+                  className={`w-full p-2 border rounded-md ${
+                    dateOfBirthTouched && getDateOfBirthError(formData.dateOfBirth)
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }`}
                   required
                 />
+                {dateOfBirthTouched && getDateOfBirthError(formData.dateOfBirth) && (
+                  <p className="mt-1 text-sm text-red-600" role="alert">
+                    {getDateOfBirthError(formData.dateOfBirth)}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -326,23 +406,10 @@ export function Registration() {
                   required
                 >
                   <option value="">
-                    {language === "en" ? "-- Select --" : "-- चयन करें --"}
-                  </option>
-                  <option value="locomotor">
-                    {language === "en" ? "Locomotor Disability" : "गतिविषयक विकलांगता"}
-                  </option>
-                  <option value="visual">
-                    {language === "en" ? "Visual Impairment" : "दृष्टि हानि"}
-                  </option>
-                  <option value="hearing">
-                    {language === "en" ? "Hearing Impairment" : "श्रवण हानि"}
-                  </option>
-                  <option value="intellectual">
-                    {language === "en" ? "Intellectual Disability" : "बौद्धिक विकलांगता"}
-                  </option>
-                  <option value="multiple">
-                    {language === "en" ? "Multiple Disabilities" : "बहु विकलांगता"}
-                  </option>
+                  {language === "en" ? "-- Select --" : "-- चयन करें --"}
+                </option>
+
+                {DISABILITY_TYPES.map(type => <option key={type} value={type}>{DISABILITY_LABELS[type]}</option>)}
                 </select>
               </div>
 
@@ -355,9 +422,25 @@ export function Registration() {
                   name="disabilityPercentage"
                   value={formData.disabilityPercentage}
                   onChange={handleChange}
-                  className="w-full p-2 border rounded-md"
+                  min="0"
+                  max="100"
+                  step="1"
+                  aria-invalid={
+                    disabilityPercentageTouched &&
+                    Boolean(getDisabilityPercentageError(formData.disabilityPercentage))
+                  }
+                  className={`w-full p-2 border rounded-md ${
+                    disabilityPercentageTouched && getDisabilityPercentageError(formData.disabilityPercentage)
+                      ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                      : ""
+                  }`}
                   required
                 />
+                {disabilityPercentageTouched && getDisabilityPercentageError(formData.disabilityPercentage) && (
+                  <p className="mt-1 text-sm text-red-600" role="alert">
+                    {getDisabilityPercentageError(formData.disabilityPercentage)}
+                  </p>
+                )}
               </div>
 
               <div className="md:col-span-2">
@@ -453,11 +536,7 @@ export function Registration() {
               <option value="">
                 {language === "en" ? "-- Select Device --" : "-- उपकरण चुनें --"}
               </option>
-              <option value="wheelchair">Wheelchair</option>
-              <option value="hearing">Hearing Aid</option>
-              <option value="crutches">Crutches</option>
-              <option value="prosthetic">Prosthetic Limb</option>
-              <option value="braille">Braille Equipment</option>
+              {DEVICE_TYPES.map(device => <option key={device} value={device}>{DEVICE_LABELS[device]}</option>)}
             </select>
           </div>
 
@@ -469,7 +548,10 @@ export function Registration() {
                 name="declarationAccepted"
                 checked={formData.declarationAccepted}
                 onChange={(e) =>
-                  setFormData({ ...formData, declarationAccepted: e.target.checked })
+                  setFormData((prevFormData) => ({
+                    ...prevFormData,
+                    declarationAccepted: e.target.checked,
+                  }))
                 }
                 className="h-4 w-4 text-blue-600 border-gray-300 rounded"
                 required

@@ -33,7 +33,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const { language } = useAccessibility();
 
-  const { isAuthenticated, loading, error } = useSelector(
+  const { isAuthenticated, user, loading, error } = useSelector(
     (state) => state.auth
   );
 
@@ -58,11 +58,11 @@ export default function AuthPage() {
     resolver: zodResolver(isLogin ? loginSchema : signupSchema),
   });
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/home");
-    }
-  }, [isAuthenticated, navigate]);
+useEffect(() => {
+  if (isAuthenticated) {
+    navigate("/", { replace: true });
+  }
+}, [isAuthenticated, navigate]);
 
   const onSubmit = (data) => {
     if (isLogin) {

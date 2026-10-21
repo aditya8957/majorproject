@@ -26,12 +26,8 @@ export const loginUser = createAsyncThunk(
       const response = await axiosClient.post('/user/login', credentials);
       
       // ✅ Token store karo
-      console.log('Login response:', response.data); // Debug
       if (response.data.token) {
         localStorage.setItem('token', response.data.token);
-        console.log('Token stored:', response.data.token);
-      } else {
-        console.log('No token in response');
       }
       
       return response.data.user;

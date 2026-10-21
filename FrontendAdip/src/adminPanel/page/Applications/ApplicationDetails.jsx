@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
-import { verifyDocumentStatus , updateApplicationStatus, fetchDocument } from '../../store';
+import { verifyDocumentStatus , updateApplicationStatus, fetchDocument, verifyDistribution, fetchApplicationById } from '../../store';
 import {
   ArrowLeft,
   Printer,
@@ -20,21 +20,32 @@ import {
 import { format } from 'date-fns';
 import { StatusBadge } from '../../component/StatusBadge';
 import { motion, AnimatePresence } from "framer-motion";
+import { normalizeApplicationStatus } from '../../../utils/applicationStatus';
+import { APPLICATION_STATUS } from '../../../utils/applicationStatus';
+
+const getAdminWorkflowStage = (application) => {
+  const status = normalizeApplicationStatus(application?.status);
+  if (status === 'rejected') return 0;
+  if (['proof_submitted', 'proof_rejected'].includes(status)) return 6;
+  if (status === 'completed') return 7;
+  if (['ngo_assigned', 'processing_at_ngo', 'aid_preparation', 'aid_ready', 'out_for_delivery', 'delivered'].includes(status)) return 5;
+  if (status === 'approved') return 4;
+  if (status === 'under_review') return 2;
+  return 1;
+};
 
 export const ApplicationDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // ✅ Redux state
-  const { loading, ngoRegistrationRequests } = useSelector((state) => state.app);
-  
-  // ✅ Force update ke liye local state
-  const [updateTrigger, setUpdateTrigger] = useState(0);
+  //  Redux state
+  const { loading, ngoRegistrationRequests, selectedApplication } = useSelector((state) => state.app);
+  const app = selectedApplication?.id === id ? selectedApplication : null;
 
-  const app = useSelector((state) =>
-    state.app.applications.find((a) => a.id === id)
-  );
+  useEffect(() => {
+    dispatch(fetchApplicationById(id));
+  }, [dispatch, id]);
 
   const ngos = useSelector((state) => state.app.ngos);
 
@@ -46,7 +57,7 @@ export const ApplicationDetailsPage = () => {
     contact: ngo.phone,
     address: ngo.address,
     registrationNumber: ngo.registrationNumber,
-    status: 'Approved',
+    status: 'approved',
     approvedAt: ngo.approvedAt,
     documents: ngo.documents
   }));
@@ -57,23 +68,18 @@ export const ApplicationDetailsPage = () => {
     ...approvedNGOs.map(n => [n.id, n])
   ]).values());
 
-  const [verificationStep, setVerificationStep] = useState(1);
+  const verificationStep = getAdminWorkflowStage(app);
   const [rejectionReason, setRejectionReason] = useState('');
   const [selectedNGOId, setSelectedNGOId] = useState('');
+  const [assigningNGO, setAssigningNGO] = useState(false);
+  const assigningNGOLock = React.useRef(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [showDocVerifyModal, setShowDocVerifyModal] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [docRejectionReason, setDocRejectionReason] = useState('');
+  const [distributionComment, setDistributionComment] = useState('');
 
-  useEffect(() => {
-    if (app) {
-      console.log('🔄 App updated:', {
-        id: app.id,
-        documents: app.documents.map(d => ({ id: d.id, status: d.status }))
-      });
-    }
-  }, [app, updateTrigger]); 
-
+  if (loading && !app) return <div>Loading application...</div>;
   if (!app) return <div>Application not found</div>;
 
   const isEligible =
@@ -114,7 +120,6 @@ export const ApplicationDetailsPage = () => {
         if (result.success) {
           console.log('✅ Document verified successfully');
         
-          setUpdateTrigger(prev => prev + 1);
         }
       });
     }
@@ -134,53 +139,68 @@ export const ApplicationDetailsPage = () => {
           setSelectedDoc(null);
           setDocRejectionReason('');
           // FORCE UI UPDATE
-          setUpdateTrigger(prev => prev + 1);
         }
       });
     }
   };
 
-  const handleApprove = () => {
-    dispatch(
+  const handleApprove = async () => {
+    await dispatch(
       updateApplicationStatus({
         id: app.id,
-        status: 'APPROVED'
+        status: APPLICATION_STATUS.APPROVED
       })
     );
-    setVerificationStep(4);
   };
 
-  const handleReject = () => {
-    dispatch(
+  const handleReject = async () => {
+    const result = await dispatch(
       updateApplicationStatus({
         id: app.id,
-        status: 'REJECTED',
+        status: APPLICATION_STATUS.REJECTED,
         rejectionReason
       })
     );
-    setShowRejectionModal(false);
-    navigate('/admin/applications');
+    if (result.success) {
+      setShowRejectionModal(false);
+      navigate('/admin/applications');
+    }
   };
 
-  const handleAssignNGO = () => {
-    dispatch(
-      updateApplicationStatus({
-        id: app.id,
-        status: 'NGO_ASSIGNED',
-        ngoId: selectedNGOId
-      })
-    );
-    setVerificationStep(5);
+  const handleAssignNGO = async () => {
+    if (!selectedNGOId || assigningNGOLock.current) return;
+
+    assigningNGOLock.current = true;
+    setAssigningNGO(true);
+    try {
+      await dispatch(
+        updateApplicationStatus({
+          id: app.id,
+          status: APPLICATION_STATUS.NGO_ASSIGNED,
+          ngoId: selectedNGOId
+        })
+      );
+    } finally {
+      assigningNGOLock.current = false;
+      setAssigningNGO(false);
+    }
   };
 
-  const handleForwardToNGO = () => {
-    dispatch(
+  const handleForwardToNGO = async () => {
+    const result = await dispatch(
       updateApplicationStatus({
         id: app.id,
-        status: 'PROCESSING_AT_NGO'
+        status: APPLICATION_STATUS.PROCESSING_AT_NGO
       })
     );
-    navigate('/admin/applications');
+    if (result.success) navigate('/admin/applications');
+  };
+
+  const handleDistributionVerification = (status) => {
+    if (status === 'rejected' && !distributionComment.trim()) return;
+    dispatch(verifyDistribution({ id: app.id, status, comment: distributionComment.trim() })).then((result) => {
+      if (result.success) setDistributionComment('');
+    });
   };
 
  
@@ -205,10 +225,10 @@ export const ApplicationDetailsPage = () => {
             <p className="text-slate-500 font-mono text-sm">{app.id}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <button className="p-2 text-slate-400 hover:text-slate-600"><Printer size={20} /></button>
           <button className="p-2 text-slate-400 hover:text-slate-600"><MoreVertical size={20} /></button>
-        </div>
+        </div> */}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -267,10 +287,10 @@ export const ApplicationDetailsPage = () => {
                   Doctor's recommendation attached
                 </div>
               </div>
-              <div className="text-right">
+              {/* <div className="text-right">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estimated Cost</p>
                 <p className="text-2xl font-bold text-emerald-600">₹{app.estimatedCost.toLocaleString()}</p>
-              </div>
+              </div> */}
             </div>
           </section>
 
@@ -283,7 +303,7 @@ export const ApplicationDetailsPage = () => {
             <div className="space-y-3">
               {app.documents.map((doc) => (
                 <div 
-                  key={`${doc.id}-${doc.status}-${updateTrigger}`} // ✅ Unique key for re-render
+                  key={`${doc.id}-${doc.status}`}
                   className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all"
                 >
                   <div className="flex items-center gap-4">
@@ -362,7 +382,7 @@ export const ApplicationDetailsPage = () => {
             <div className="p-6 bg-slate-900 text-white">
               <h3 className="text-lg font-bold">Processing Workflow</h3>
               <div className="mt-4 flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((s) => (
+                {[1, 2, 3, 4, 5, 6, 7].map((s) => (
                   <div 
                     key={s} 
                     className={`h-1.5 flex-1 rounded-full ${s <= verificationStep ? 'bg-emerald-500' : 'bg-slate-700'}`}
@@ -372,6 +392,14 @@ export const ApplicationDetailsPage = () => {
             </div>
 
             <div className="p-8 space-y-8">
+              {(verificationStep === 6 || verificationStep === 7) && (
+                <div className="mb-6 space-y-4 rounded-2xl border border-orange-200 bg-orange-50 p-5">
+                  <h4 className="font-bold text-orange-900">{verificationStep === 7 ? 'Distribution Completed' : normalizeApplicationStatus(app.status) === 'proof_rejected' ? 'Proof Rejected - Awaiting NGO Resubmission' : 'Distribution Verification'}</h4>
+                  {app.distributionProof?.fileUrl && <a href={app.distributionProof.fileUrl} target="_blank" rel="noreferrer" className="font-semibold text-orange-800 underline">View distribution proof</a>}
+                  {verificationStep === 6 && normalizeApplicationStatus(app.status) === 'proof_submitted' && <><textarea value={distributionComment} onChange={(event) => setDistributionComment(event.target.value)} placeholder="Verification comment (optional for approval, required for rejection)" className="w-full rounded-xl border border-orange-200 p-3" /><div className="flex gap-3"><button onClick={() => handleDistributionVerification('verified')} className="rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">Approve Distribution</button><button disabled={!distributionComment.trim()} onClick={() => handleDistributionVerification('rejected')} className="rounded-xl bg-red-600 px-4 py-3 font-semibold text-white disabled:opacity-40">Reject / Re-upload</button></div></>}
+                </div>
+              )}
+
               {/* Step 1: Document Verification */}
               {verificationStep === 1 && (
                 <div className="space-y-6">
@@ -385,7 +413,7 @@ export const ApplicationDetailsPage = () => {
                       
                       return (
                         <div 
-                          key={`${doc.id}-${doc.status}-${updateTrigger}`} // ✅ Unique key for re-render
+                          key={`${doc.id}-${doc.status}`}
                           className="flex items-center gap-3"
                         >
                           {/* Tick Circle - YAHI TICK HOGA */}
@@ -424,7 +452,7 @@ export const ApplicationDetailsPage = () => {
                     disabled={!allDocumentsVerified}
                     onClick={() => {
                       if (allDocumentsVerified) {
-                        setVerificationStep(2);
+                        dispatch(fetchApplicationById(app.id));
                       }
                     }}
                     className={`
@@ -473,10 +501,10 @@ export const ApplicationDetailsPage = () => {
 
                   {isEligible ? (
                     <button 
-                      onClick={() => setVerificationStep(3)}
+                      onClick={handleApprove}
                       className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all"
                     >
-                      Proceed to Approval
+                      Approve Application
                     </button>
                   ) : (
                     <button 
@@ -558,7 +586,7 @@ export const ApplicationDetailsPage = () => {
                                   <p className="text-sm font-bold text-slate-900">{selectedNGO.name}</p>
                                   <p className="text-xs text-slate-500 mt-1">{selectedNGO.location}</p>
                                 </div>
-                                {selectedNGO.status === 'Approved' && (
+                                {selectedNGO.status === 'approved' && (
                                   <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg">
                                     ✓ Approved
                                   </span>
@@ -582,12 +610,13 @@ export const ApplicationDetailsPage = () => {
                       </div>
                     )}
                   </div>
-                  <button 
-                    disabled={!selectedNGOId}
+                  <button
+                    type="button"
+                    disabled={!selectedNGOId || assigningNGO}
                     onClick={handleAssignNGO}
                     className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-200 text-white font-bold py-3 rounded-xl transition-all"
                   >
-                    Assign NGO
+                    {assigningNGO ? 'Assigning...' : 'Assign NGO'}
                   </button>
                 </div>
               )}
@@ -608,8 +637,8 @@ export const ApplicationDetailsPage = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-slate-500">Assigned NGO</span>
                       <div className="text-right">
-                        <p className="text-xs font-bold text-slate-900">{availableNGOs.find(n => n.id === app.assignedNGOId || n.id === selectedNGOId)?.name}</p>
-                        {availableNGOs.find(n => n.id === app.assignedNGOId || n.id === selectedNGOId)?.status === 'Approved' && (
+                        <p className="text-xs font-bold text-slate-900">{app.ngo?.ngoName || availableNGOs.find(n => n.id === selectedNGOId)?.name || 'Assigned NGO'}</p>
+                        {(app.ngo?.ngoName || availableNGOs.find(n => n.id === selectedNGOId)) && (
                           <span className="text-xs text-emerald-600 font-medium">✓ Approved NGO</span>
                         )}
                       </div>
