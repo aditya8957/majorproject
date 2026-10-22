@@ -11,6 +11,7 @@ import { Registration } from "./pages/Registration";
 import { NGOApplication } from "./pages/NGOApplication";
 import { DeviceCatalog } from "./pages/DeviceCatalog";
 import { Help } from "./pages/Help";
+import { About } from "./pages/About";
 import { Contact } from "./pages/Contact";
 import { ApplicationStatus } from "./pages/ApplicationStatus";
 import { EligibilityChecker } from "./pages/EligibilityChecker";
@@ -73,6 +74,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/home" element={<Home />} />
+            <Route path="/about" element={<About />} />
             <Route path="/devices" element={<DeviceCatalog />} />
             <Route path="/help" element={<Help />} />
             <Route path="/contact" element={<Contact />} />

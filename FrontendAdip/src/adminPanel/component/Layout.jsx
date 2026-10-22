@@ -1,6 +1,6 @@
 import React from 'react';
-import { Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { logoutUser } from "../../authSlice";
 
 import {
@@ -8,7 +8,6 @@ import {
   FileText,
   Users,
   BarChart3,
-  Settings,
   LogOut,
   Target
 } from 'lucide-react';
@@ -26,7 +25,7 @@ const navItems = [
   { path: '/admin/applications', icon: FileText, label: 'Applications' },
   { path: '/admin/ngos', icon: Users, label: 'NGOs' },
   { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
-  { path: '/admin/settings', icon: Settings, label: 'Settings' },
+  // { path: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
 
   return (
@@ -68,12 +67,8 @@ const navItems = [
       <div className="mt-auto p-6 border-t border-slate-800">
         <button
           onClick={() => {
-            try {
-              dispatch(logoutUser());
-            } catch (e) {
-              console.error('Logout dispatch failed', e);
-            }
-            navigate('/auth/login');
+            dispatch(logoutUser());
+            navigate('/');
           }}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all w-full text-left"
         >
@@ -91,10 +86,6 @@ const navItems = [
 
 // ---------------- LAYOUT ----------------
 export const Layout = ({ children }) => {
-  // const isAuthenticated = useSelector((state) => state.app.isAuthenticated);
-
-  // if (!isAuthenticated) return <Navigate to="/login" replace />;
-
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar />

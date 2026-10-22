@@ -118,7 +118,7 @@ export function Help() {
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h3 className="font-semibold text-lg text-gray-800 mb-2">{language === 'en' ? 'Email Support' : 'ईमेल सहायता'}</h3>
             <p className="text-blue-600 font-bold text-lg">
-              <a href="mailto:help@adip.gov.in" className="hover:underline">help@adip.gov.in</a>
+              <a href="mailto:support@divyangsahayak.in" className="hover:underline">support@divyangsahayak.in</a>
             </p>
             <p className="text-sm text-gray-500">{language === 'en' ? '(Response within 48 hours)' : '(48 घंटे के भीतर प्रतिक्रिया)'}</p>
           </div>

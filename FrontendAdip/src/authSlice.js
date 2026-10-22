@@ -70,6 +70,8 @@ export const checkAuth = createAsyncThunk(
 export const logoutUser = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
+    localStorage.removeItem('token');
+
     try {
       await axiosClient.post('/user/logout');
       return null;
@@ -203,8 +205,10 @@ const authSlice = createSlice({
   
       // Logout User Cases
       .addCase(logoutUser.pending, (state) => {
-        state.loading = true;
+        state.loading = false;
         state.error = null;
+        state.user = null;
+        state.isAuthenticated = false;
       })
       .addCase(logoutUser.fulfilled, (state) => {
         state.loading = false;

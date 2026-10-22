@@ -66,11 +66,11 @@ export function Contact() {
                   <MapPinIcon className="flex-shrink-0 h-6 w-6 text-blue-600" />
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">{language === "en" ? "Address" : "पता"}</h3>
-                    <p className="text-gray-600">
-                      {language === "en"
-                        ? "Department of Empowerment of Persons with Disabilities, Ministry of Social Justice and Empowerment, 5th Floor, Paryavaran Bhawan, CGO Complex, Lodhi Road, New Delhi - 110003"
-                        : "दिव्यांगजन सशक्तिकरण विभाग, सामाजिक न्याय और अधिकारिता मंत्रालय, 5वीं मंजिल, पर्यावरण भवन, सीजीओ कॉम्प्लेक्स, लोधी रोड, नई दिल्ली - 110003"}
-                    </p>
+                   <p className="text-gray-600">
+                    {language === "en"
+                      ? "KIET Group of Institutions, Delhi-NCR, Ghaziabad, Uttar Pradesh, India"
+                      : "केआईईटी ग्रुप ऑफ इंस्टीट्यूशंस, दिल्ली-एनसीआर, गाज़ियाबाद, उत्तर प्रदेश, भारत"}
+                  </p>
                   </div>
                 </div>
                 {/* Phone */}
@@ -88,10 +88,7 @@ export function Contact() {
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">{language === "en" ? "Email" : "ईमेल"}</h3>
                     <p className="text-gray-600">
-                      <a href="mailto:contact@adip.gov.in" className="text-blue-600 hover:underline">contact@adip.gov.in</a>
-                    </p>
-                    <p className="text-gray-600">
-                      <a href="mailto:support@adip.gov.in" className="text-blue-600 hover:underline">support@adip.gov.in</a>
+                      <a href="mailto:support@divyangsahayak.in" className="text-blue-600 hover:underline">support@divyangsahayak.in</a>
                     </p>
                   </div>
                 </div>

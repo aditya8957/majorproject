@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
-  Menu, X, Accessibility, Globe, User, Settings, LogOut, 
+  Menu, X, Accessibility, Globe, User, LogOut, 
   ChevronDown, Heart, Bell, Moon, Sun, Shield, 
   ChevronRight, Home, ClipboardList, Package, Search,
   HelpCircle, Phone, Award, Sparkles
@@ -417,14 +417,14 @@ export function Navbar() {
                               )}
                             </Link>
 
-                            <Link
+                            {/* <Link
                               to="/settings"
                               className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 transition-all duration-300 group"
                               onClick={() => setShowUserMenu(false)}
                             >
                               <Settings className="h-4 w-4 text-gray-500 group-hover:text-blue-600" />
                               <span className="flex-1">{language === "en" ? "Settings" : "सेटिंग्स"}</span>
-                            </Link>
+                            </Link> */}
 
                             {user?.role === "admin" && (
                             <Link

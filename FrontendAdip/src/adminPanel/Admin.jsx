@@ -1,7 +1,5 @@
 import React from 'react';
-import { Provider } from 'react-redux';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { store } from './store';
 import { Layout } from './component/Layout';
 import { DashboardOverview } from './page/Dashboard';
 import { ApplicationListPage } from './page/Applications/ApplicationList';
@@ -24,9 +22,5 @@ const AppContent = () => {
 };
 
 export default function Admin() {
-  return (
-    <Provider store={store}>
-      <AppContent />
-    </Provider>
-  );
+  return <AppContent />;
 }
